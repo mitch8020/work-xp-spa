@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "dev": "vite dev",
     "build": "vite build",
     "start": "node server.js",
     "heroku-postbuild": "npm run build"
@@ -15,6 +16,7 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.11",
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.6",
