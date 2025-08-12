@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Minus, RotateCcw, Save, Download, Upload, Trophy, Target, Swords, Settings, RefreshCcw, Info, Trash2, Circle, ListChecks, Eye, EyeOff, X, Loader2, Sparkles, Edit3 } from "lucide-react";
+import { Plus, Minus, RotateCcw, Save, Download, Upload, Trophy, Target, Swords, Settings, RefreshCcw, Info, Trash2, Circle, ListChecks, Eye, EyeOff, X, Loader2, Sparkles, Edit3, Flame, Package } from "lucide-react";
 
 // --- Helpers ---
 const STORAGE_KEY = "work-xp-spa:v1";
@@ -283,7 +283,7 @@ export default function App() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-4 md:mb-6">
           <Card>
             <div className="flex items-center gap-3">
-              <Target className="w-5 h-5" />
+              <Trophy className="w-5 h-5" />
               <div className="text-sm opacity-80">Lifetime XP</div>
             </div>
             <div className="mt-2 text-2xl font-semibold">{lifetimeXP} XP</div>
@@ -291,7 +291,7 @@ export default function App() {
 
           <Card>
             <div className="flex items-center gap-3">
-              <Trophy className="w-5 h-5" />
+              <Target className="w-5 h-5" />
               <div className="text-sm opacity-80">Daily XP</div>
             </div>
             <div className="mt-2 text-2xl font-semibold">{totalXP} XP</div>
@@ -299,7 +299,7 @@ export default function App() {
 
           <Card>
             <div className="flex items-center gap-3">
-              <img alt="streak" className="w-5 h-5" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='white'><path d='M13 3a9 9 0 0 1 9 9c0 3.12-1.6 5.85-4.02 7.43.44-1.07.68-2.23.68-3.43A8.01 8.01 0 0 0 5.47 8.47 9 9 0 0 1 13 3z'/></svg>" />
+              <Flame className="w-5 h-5" />
               <div className="text-sm opacity-80">Streak</div>
             </div>
             <div className="mt-2 text-2xl font-semibold">{streak} days</div>
@@ -460,7 +460,7 @@ export default function App() {
         <div className="bg-slate-900/60 rounded-2xl shadow p-3 md:p-4">
           <div className="flex items-center justify-between mb-2 md:mb-3">
             <div className="flex items-center gap-2">
-            <Trophy className="w-5 h-5"/>
+            <Package className="w-5 h-5"/>
               <h2 className="text-base md:text-lg font-semibold">Loot Drops</h2>
               <span className="ml-2 text-xs text-slate-400">Points available: <span className="text-slate-200 font-semibold">{availablePoints}</span></span>
           </div>
