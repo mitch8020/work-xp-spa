@@ -1,31 +1,31 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Minus, RotateCcw, Save, Download, Upload, Trophy, Target, Swords, Settings, RefreshCcw } from "lucide-react";
+import { Plus, Minus, RotateCcw, Save, Download, Upload, Trophy, Target, Swords, Settings, RefreshCcw, Info, Trash2, Circle, ListChecks } from "lucide-react";
 
 // --- Helpers ---
 const STORAGE_KEY = "work-xp-spa:v1";
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const defaultTasks = [
-  { id: crypto.randomUUID(), name: "Open laptop & set up environment", xp: 5, count: 0 },
-  { id: crypto.randomUUID(), name: "Finish a tiny task (5–10 min)", xp: 10, count: 0 },
-  { id: crypto.randomUUID(), name: "Solve a tricky bug", xp: 20, count: 0 },
-  { id: crypto.randomUUID(), name: "Push code to repo", xp: 15, count: 0 },
-  { id: crypto.randomUUID(), name: "Work uninterrupted for 25 min (Pomodoro)", xp: 10, count: 0 },
-  { id: crypto.randomUUID(), name: "Streak bonus (3+ days in a row)", xp: 10, count: 0 },
+  { id: crypto.randomUUID(), name: "Open laptop & set up environment", xp: 5, completed: false },
+  { id: crypto.randomUUID(), name: "Finish a tiny task (5–10 min)", xp: 10, completed: false },
+  { id: crypto.randomUUID(), name: "Solve a tricky bug", xp: 20, completed: false },
+  { id: crypto.randomUUID(), name: "Push code to repo", xp: 15, completed: false },
+  { id: crypto.randomUUID(), name: "Work uninterrupted for 25 min (Pomodoro)", xp: 10, completed: false },
+  { id: crypto.randomUUID(), name: "Streak bonus (3+ days in a row)", xp: 10, completed: false },
 ];
 
 const defaultLoot = [
-  { id: 1, threshold: 50, label: "Favorite snack" },
-  { id: 2, threshold: 100, label: "Guilt‑free YouTube break" },
-  { id: 3, threshold: 200, label: "Nice lunch or game time" },
+  { id: 1, threshold: 15, label: "Favorite snack", description: longDescription("Favorite snack", 15), claimed: false },
+  { id: 2, threshold: 40, label: "Guilt‑free YouTube break", description: longDescription("Guilt‑free YouTube break", 40), claimed: false },
+  { id: 3, threshold: 70, label: "Nice lunch or game time", description: longDescription("Nice lunch or game time", 70), claimed: false },
 ];
 
 const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
 
 export default function App() {
   const [tasks, setTasks] = useState(defaultTasks);
-  const [dailyGoal, setDailyGoal] = useState(50);
+  const [dailyGoal, setDailyGoal] = useState(100);
   const [loot, setLoot] = useState(defaultLoot);
   const [streak, setStreak] = useState(0);
   const [lastReset, setLastReset] = useState(todayISO());
@@ -37,6 +37,10 @@ export default function App() {
   const [defaultAvailableMinutes, setDefaultAvailableMinutes] = useState(240);
   const [lootRefreshing, setLootRefreshing] = useState(false);
   const [lootError, setLootError] = useState("");
+  const [lifetimeXP, setLifetimeXP] = useState(0);
+  const [pointsSpent, setPointsSpent] = useState(0);
+  const [showProfileWizard, setShowProfileWizard] = useState(false);
+  const [dailyEarnedXP, setDailyEarnedXP] = useState(0);
 
   // --- Load / Save ---
   useEffect(() => {
@@ -46,21 +50,24 @@ export default function App() {
       const parsed = JSON.parse(raw);
       if (parsed.tasks) setTasks(parsed.tasks);
       if (parsed.dailyGoal) setDailyGoal(parsed.dailyGoal);
-      if (parsed.loot) setLoot(parsed.loot);
+      if (parsed.loot) setLoot(parsed.loot.map((l) => ({ claimed: false, description: l.description || defaultDescription(l.label, l.threshold), ...l })));
       if (parsed.streak != null) setStreak(parsed.streak);
       if (parsed.lastReset) setLastReset(parsed.lastReset);
       if (parsed.autoCarryStreak != null) setAutoCarryStreak(parsed.autoCarryStreak);
       if (parsed.openaiKey) setOpenaiKey(parsed.openaiKey);
       if (parsed.defaultAvailableMinutes) setDefaultAvailableMinutes(parsed.defaultAvailableMinutes);
+      if (parsed.lifetimeXP != null) setLifetimeXP(parsed.lifetimeXP);
+      if (parsed.pointsSpent != null) setPointsSpent(parsed.pointsSpent);
+      if (parsed.dailyEarnedXP != null) setDailyEarnedXP(parsed.dailyEarnedXP);
     } catch (e) {
       console.warn("Failed to load saved state", e);
     }
   }, []);
 
   useEffect(() => {
-    const state = { tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes };
+    const state = { tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes]);
+  }, [tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP]);
 
   // Auto-check for day change to suggest reset
   useEffect(() => {
@@ -75,9 +82,11 @@ export default function App() {
   }, [lastReset]);
 
   const totalXP = useMemo(
-    () => tasks.reduce((sum, t) => sum + t.xp * (t.count || 0), 0),
-    [tasks]
+    () => dailyEarnedXP + tasks.reduce((sum, t) => sum + (t.completed ? (t.xp || 0) : 0), 0),
+    [tasks, dailyEarnedXP]
   );
+
+  const availablePoints = Math.max(0, lifetimeXP - pointsSpent);
 
   const progress = useMemo(() => {
     const pct = dailyGoal > 0 ? totalXP / dailyGoal : 0;
@@ -85,15 +94,22 @@ export default function App() {
   }, [dailyGoal, totalXP]);
 
   // --- Task Ops ---
-  const inc = (id) => setTasks(ts => ts.map(t => t.id === id ? { ...t, count: (t.count || 0) + 1 } : t));
-  const dec = (id) => setTasks(ts => ts.map(t => t.id === id ? { ...t, count: clamp((t.count || 0) - 1, 0, 999) } : t));
+  const completeTask = (id) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    const xp = Math.max(0, Number(task.xp) || 0);
+    setLifetimeXP((v) => v + xp);
+    setDailyEarnedXP((v) => v + xp);
+    // Remove from list to animate out
+    setTasks((ts) => ts.filter((t) => t.id !== id));
+  };
   const updateTask = (id, patch) => setTasks(ts => ts.map(t => t.id === id ? { ...t, ...patch } : t));
   const deleteTask = (id) => setTasks(ts => ts.filter(t => t.id !== id));
 
   const addTask = () => {
     setTasks(ts => [
       ...ts,
-      { id: crypto.randomUUID(), name: "New task", xp: 5, count: 0 },
+      { id: crypto.randomUUID(), name: "New task", xp: 5, completed: false },
     ]);
   };
 
@@ -105,7 +121,8 @@ export default function App() {
       : "Reset day? (Today's progress will be cleared)";
     if (!confirm(confirmText)) return;
 
-    setTasks(ts => ts.map(t => ({ ...t, count: 0 })));
+    setTasks(ts => ts.map(t => ({ ...t, completed: false })));
+    setDailyEarnedXP(0);
     setLastReset(todayISO());
     if (autoCarryStreak) {
       setStreak(s => (metGoal ? s + 1 : 0));
@@ -114,7 +131,7 @@ export default function App() {
 
   // --- Export / Import ---
   const exportJSON = () => {
-    const data = { tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak };
+    const data = { tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, lifetimeXP, pointsSpent, dailyEarnedXP };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -131,10 +148,13 @@ export default function App() {
         const data = JSON.parse(reader.result);
         if (data.tasks) setTasks(data.tasks);
         if (data.dailyGoal != null) setDailyGoal(data.dailyGoal);
-        if (data.loot) setLoot(data.loot);
+         if (data.loot) setLoot(data.loot.map((l) => ({ claimed: false, description: l.description || defaultDescription(l.label, l.threshold), ...l })));
         if (data.streak != null) setStreak(data.streak);
         if (data.lastReset) setLastReset(data.lastReset);
         if (data.autoCarryStreak != null) setAutoCarryStreak(data.autoCarryStreak);
+         if (data.lifetimeXP != null) setLifetimeXP(data.lifetimeXP);
+         if (data.pointsSpent != null) setPointsSpent(data.pointsSpent);
+         if (data.dailyEarnedXP != null) setDailyEarnedXP(data.dailyEarnedXP);
       } catch (e) {
         alert("Invalid JSON file");
       }
@@ -151,7 +171,7 @@ export default function App() {
     }
     try {
       setLootRefreshing(true);
-      const system = "You recommend motivating reward ideas for personal productivity. Output strictly JSON: {\\\"loot\\\":[{\\\"threshold\\\":number,\\\"label\\\":string}]} with 3-5 items, thresholds ascending and practical for a daily XP system (typical 30..300). Keep labels short and fun.";
+      const system = "You recommend motivating break rewards for personal productivity. Output strictly JSON: {\\\"loot\\\":[{\\\"threshold\\\":number,\\\"label\\\":string,\\\"description\\\":string}]} with 5 base items between 10 and 80 points (ascending), PLUS 1 premium item at least 100 points. Each description must be a helpful, specific paragraph of at least 50 characters describing how to take that break within the day, including mindful and time-bound guidance aligned to the point cost."
       const user = `Current total XP today: ${totalXP}. Daily goal: ${dailyGoal}. Existing rewards: ${loot.map(l=>`${l.threshold}:${l.label}`).join(" | ")}. Suggest fresh rewards and thresholds that unlock progressively.`;
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -174,54 +194,75 @@ export default function App() {
       const content = data.choices?.[0]?.message?.content || "";
       const parsed = JSON.parse(content);
       if (!parsed || !Array.isArray(parsed.loot)) throw new Error("Invalid AI response");
-      const next = parsed.loot
-        .map((x) => ({ threshold: Math.max(5, Math.floor(Number(x.threshold) || 0)), label: String(x.label || "Reward") }))
-        .filter((x) => Number.isFinite(x.threshold) && x.label)
+      console.debug("AI loot refresh response:", parsed);
+      const cleaned = parsed.loot
+        .map((x) => ({ threshold: Math.floor(Number(x.threshold) || 0), label: String(x.label || "Reward"), description: String(x.description || "") }))
+        .filter((x) => Number.isFinite(x.threshold) && x.label);
+      const base = cleaned
+        .filter((x) => x.threshold >= 10 && x.threshold <= 80)
         .sort((a, b) => a.threshold - b.threshold)
-        .slice(0, 5)
-        .map((x, i) => ({ id: crypto.randomUUID(), threshold: x.threshold, label: x.label }));
-      if (next.length === 0) throw new Error("No loot returned");
-      setLoot(next);
+        .slice(0, 5);
+      const premium = cleaned.find((x) => x.threshold >= 100) || { threshold: 100, label: "Grand Reward" };
+      const finalList = [...base, premium]
+        .map((x) => ({ id: crypto.randomUUID(), threshold: x.threshold, label: x.label, description: ensureDescription(x.label, x.threshold, x.description), claimed: false }));
+      setLoot(finalList);
     } catch (e) {
+      console.error("Loot refresh failed:", e);
       setLootError(e.message || String(e));
+      // Fallback locally generated set so the UI still updates
+      const fallback = generateFallbackLoot();
+      setLoot(fallback);
     } finally {
       setLootRefreshing(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 flex items-center justify-center">
-      <div className="w-full max-w-4xl">
-        <header className="mb-6 flex items-center gap-3">
-          <Swords className="w-7 h-7 text-indigo-400" />
-          <h1 className="text-2xl md:text-3xl font-semibold flex-1">Work XP — Daily Grind</h1>
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-6 flex items-center justify-center">
+      <div className="w-full">
+        <header className="mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
+          <Swords className="w-6 h-6 md:w-7 md:h-7 text-indigo-400" />
+          <h1 className="text-xl md:text-3xl font-semibold flex-1">Work XP — Daily Grind</h1>
           <button
             onClick={() => setShowGenerator(true)}
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl text-sm"
+            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm"
+            title="Generate tasks"
           >
-            Generate from To‑Do
+            <ListChecks className="w-4 h-4" />
+            <span className="hidden md:inline">Generate Tasks</span>
+          </button>
+          <button
+            onClick={resetDay}
+            className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm"
+            title="Reset today"
+          >
+            <RotateCcw className="w-4 h-4"/>
+            <span className="hidden md:inline">Reset Day</span>
+          </button>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm"
+            title="Settings"
+          >
+            <Settings className="w-4 h-4"/>
+            <span className="hidden md:inline">Settings</span>
           </button>
         </header>
 
         {/* Top cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-4 md:mb-6">
           <Card>
             <div className="flex items-center gap-3">
               <Target className="w-5 h-5" />
-              <div className="text-sm opacity-80">Daily Goal</div>
+              <div className="text-sm opacity-80">Lifetime XP</div>
             </div>
-            <input
-              type="number"
-              className="mt-2 w-full bg-slate-900 rounded-xl px-3 py-2 focus:outline-none focus:ring focus:ring-indigo-500/40"
-              value={dailyGoal}
-              onChange={(e) => setDailyGoal(clamp(parseInt(e.target.value || 0, 10), 0, 100000))}
-            />
+            <div className="mt-2 text-2xl font-semibold">{lifetimeXP} XP</div>
           </Card>
 
           <Card>
             <div className="flex items-center gap-3">
               <Trophy className="w-5 h-5" />
-              <div className="text-sm opacity-80">Current Total</div>
+              <div className="text-sm opacity-80">Daily XP</div>
             </div>
             <div className="mt-2 text-2xl font-semibold">{totalXP} XP</div>
           </Card>
@@ -233,13 +274,18 @@ export default function App() {
             </div>
             <div className="mt-2 text-2xl font-semibold">{streak} days</div>
           </Card>
+
+          {/* Removed Reward Points card per request */}
         </div>
 
         {/* Progress Bar */}
         <div className="mb-6">
           <div className="flex justify-between items-end mb-2">
             <div className="text-sm opacity-80">Progress</div>
-            <div className="text-sm opacity-80">{Math.round(progress * 100)}%</div>
+            <div className="text-sm opacity-80 flex items-center gap-2">
+              <span>{totalXP} XP / {dailyGoal} XP</span>
+              <span className="opacity-70">({Math.round(progress * 100)}%)</span>
+            </div>
           </div>
           <div className="w-full h-4 bg-slate-800 rounded-full overflow-hidden">
             <motion.div
@@ -251,42 +297,110 @@ export default function App() {
           </div>
         </div>
 
+        {/* Main Content: Tasks (left) and Loot (right on desktop) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:items-stretch md:h-[70vh] mb-6">
         {/* Tasks Table */}
-        <div className="bg-slate-900/60 rounded-2xl shadow p-3 md:p-4 mb-6">
-          <div className="grid grid-cols-12 gap-3 px-2 py-2 text-xs uppercase tracking-wide text-slate-400">
-            <div className="col-span-6">Task</div>
-            <div className="col-span-2 text-center">XP</div>
-            <div className="col-span-2 text-center">Times</div>
-            <div className="col-span-2 text-right">Total</div>
+        <div className="bg-slate-900/60 rounded-2xl shadow p-3 md:p-4 md:col-span-2 md:h-full md:flex md:flex-col md:min-h-0">
+          <div className="hidden md:grid grid-cols-12 gap-3 px-2 py-2 text-xs uppercase tracking-wide text-slate-400">
+            <div className="md:col-span-7">Task</div>
+            <div className="text-center md:col-span-3">XP</div>
+            <div className="text-right md:col-span-2">Actions</div>
           </div>
-          <div className="divide-y divide-slate-800/80">
+          <div className="md:flex-1 md:min-h-0 md:overflow-y-auto">
+            {tasks.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-6 text-center text-slate-300">
+                <div className="text-sm">Your task list is empty.</div>
+                <div className="mt-2 text-xs text-slate-400">Add a task or generate a list from your to‑do items to get started.</div>
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                  <button onClick={addTask} className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl text-sm">
+                    <Plus className="w-4 h-4"/> Add Task
+                  </button>
+                  <button onClick={() => setShowGenerator(true)} className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-xl text-sm">
+                    Generate Tasks
+                  </button>
+                </div>
+          </div>
+            )}
+            <AnimatePresence initial={false}>
             {tasks.map((t) => (
-              <div key={t.id} className="grid grid-cols-12 gap-3 items-center px-2 py-3">
-                <input
-                  className="col-span-6 bg-transparent outline-none rounded focus:ring focus:ring-indigo-500/30 px-2 py-1"
-                  value={t.name}
-                  onChange={(e) => updateTask(t.id, { name: e.target.value })}
-                />
-                <input
-                  type="number"
-                  className="col-span-2 bg-slate-950 rounded px-2 py-1 text-center"
-                  value={t.xp}
-                  onChange={(e) => updateTask(t.id, { xp: clamp(parseInt(e.target.value || 0, 10), 0, 100000) })}
-                />
-
-                <div className="col-span-2 flex items-center justify-center gap-2">
-                  <button onClick={() => dec(t.id)} className="p-1 rounded bg-slate-800 hover:bg-slate-700"><Minus className="w-4 h-4"/></button>
-                  <div className="min-w-[2ch] text-center">{t.count || 0}</div>
-                  <button onClick={() => inc(t.id)} className="p-1 rounded bg-slate-800 hover:bg-slate-700"><Plus className="w-4 h-4"/></button>
+              <motion.div
+                key={t.id}
+                layout
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.98, y: -6 }}
+                transition={{ duration: 0.18 }}
+                className="mb-2 md:mb-0"
+              >
+                {/* Mobile condensed row */}
+                <div className="flex items-center gap-2 rounded-xl border border-slate-800/60 bg-slate-900/50 p-2 md:hidden">
+                  <input
+                    className="flex-1 bg-transparent outline-none rounded focus:ring focus:ring-indigo-500/30 px-2 py-1 text-sm"
+                    value={t.name}
+                    onChange={(e) => updateTask(t.id, { name: e.target.value })}
+                  />
+                  <input
+                    type="number"
+                    className="w-16 bg-slate-950 rounded px-2 py-1 text-center text-xs"
+                    value={t.xp}
+                    onChange={(e) => updateTask(t.id, { xp: clamp(parseInt(e.target.value || 0, 10), 0, 100000) })}
+                  />
+                  <button
+                    className="inline-flex items-center justify-center text-slate-400 hover:text-emerald-400"
+                    onClick={() => completeTask(t.id)}
+                    aria-label="Complete task"
+                    title="Complete task"
+                  >
+                    <Circle className="w-5 h-5" />
+                  </button>
+                  <button
+                    className="inline-flex items-center justify-center text-slate-400 hover:text-red-400"
+                    onClick={() => deleteTask(t.id)}
+                    aria-label="Delete task"
+                    title="Delete task"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
 
-                <div className="col-span-2 text-right font-medium">{t.xp * (t.count || 0)} XP</div>
-
-                <div className="col-span-12 flex justify-end mt-2">
-                  <button className="text-xs text-slate-400 hover:text-red-400" onClick={() => deleteTask(t.id)}>Delete</button>
+                {/* Desktop grid row */}
+                <div className="hidden md:grid md:grid-cols-12 md:gap-3 md:items-center md:px-2 md:py-3">
+                  <input
+                    className="w-full bg-transparent outline-none rounded focus:ring focus:ring-indigo-500/30 px-2 py-1 md:col-span-7"
+                    value={t.name}
+                    onChange={(e) => updateTask(t.id, { name: e.target.value })}
+                  />
+                  <div className="md:col-span-3">
+                    <input
+                      type="number"
+                      className="w-full bg-slate-950 rounded px-2 py-1 text-center"
+                      value={t.xp}
+                      onChange={(e) => updateTask(t.id, { xp: clamp(parseInt(e.target.value || 0, 10), 0, 100000) })}
+                    />
+                  </div>
+                  <div className="flex justify-end items-center gap-2 md:col-span-2">
+                    <button
+                      className="inline-flex items-center justify-center text-slate-400 hover:text-emerald-400"
+                      onClick={() => completeTask(t.id)}
+                      aria-label="Complete task"
+                      title="Complete task"
+                    >
+                      <Circle className="w-5 h-5" />
+                    </button>
+                    <button
+                      className="inline-flex items-center justify-center text-slate-400 hover:text-red-400"
+                      onClick={() => deleteTask(t.id)}
+                      aria-label="Delete task"
+                      title="Delete task"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
+
+              </motion.div>
             ))}
+            </AnimatePresence>
           </div>
 
           <div className="flex items-center justify-between mt-3">
@@ -298,134 +412,120 @@ export default function App() {
         </div>
 
         {/* Loot / Rewards */}
-        <div className="bg-slate-900/60 rounded-2xl shadow p-4 mb-6">
-          <div className="flex items-center justify-between mb-3">
+        <div className="bg-slate-900/60 rounded-2xl shadow p-3 md:p-4 md:col-span-1 md:h-full md:overflow-auto">
+          <div className="flex items-center justify-between mb-2 md:mb-3">
             <div className="flex items-center gap-2">
-              <Trophy className="w-5 h-5"/>
-              <h2 className="text-lg font-semibold">Loot Drops</h2>
+            <Trophy className="w-5 h-5"/>
+              <h2 className="text-base md:text-lg font-semibold">Loot Drops</h2>
+              <span className="ml-2 text-xs text-slate-400">Points available: <span className="text-slate-200 font-semibold">{availablePoints}</span></span>
             </div>
             <button
               onClick={refreshLootFromAI}
               disabled={lootRefreshing || !openaiKey}
               title={openaiKey ? "Refresh rewards with AI" : "Add your OpenAI key in Settings"}
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${openaiKey ? "bg-slate-800 hover:bg-slate-700 text-white" : "bg-slate-800/50 text-slate-400 cursor-not-allowed"}`}
+              className={`inline-flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm ${openaiKey ? "bg-slate-800 hover:bg-slate-700 text-white" : "bg-slate-800/50 text-slate-400 cursor-not-allowed"}`}
             >
               <RefreshCcw className={`w-4 h-4 ${lootRefreshing ? "animate-spin" : ""}`} />
-              {lootRefreshing ? "Refreshing…" : "Refresh"}
+              {/* {lootRefreshing ? "Refreshing…" : "Refresh"} */}
             </button>
           </div>
           {lootError && <div className="mb-2 text-xs text-red-400">{lootError}</div>}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-2.5 md:gap-3">
             {loot.map((l) => {
-              const unlocked = totalXP >= l.threshold;
+              const canAfford = availablePoints >= l.threshold;
+              const canClick = !l.claimed && availablePoints > 0;
               return (
                 <button
                   key={l.id}
                   type="button"
-                  onClick={() => unlocked && setCelebratingLoot(l)}
+                  onClick={() => {
+                    if (l.claimed || availablePoints <= 0) return;
+                    if (!canAfford) {
+                      alert(`Not enough points. Need ${l.threshold - availablePoints} more.`);
+                      return;
+                    }
+                    // Deduct points and mark claimed
+                    setPointsSpent((p) => p + l.threshold);
+                    setLoot((prev) => prev.map((x) => x.id === l.id ? { ...x, claimed: true } : x));
+                    setCelebratingLoot(l);
+                  }}
                   className={
-                    `text-left rounded-xl p-3 border transition-shadow ${
-                      unlocked
-                        ? "border-emerald-400/50 bg-emerald-500/10 hover:shadow-[0_0_0_3px_rgba(16,185,129,0.25)] cursor-pointer"
-                        : "border-slate-800 cursor-not-allowed opacity-80"
+                    `relative text-left rounded-xl p-3 border transition-shadow ${
+                      l.claimed
+                        ? 'border-emerald-400/40 bg-emerald-500/10 opacity-70 cursor-not-allowed'
+                        : canAfford
+                          ? 'border-emerald-400/50 bg-emerald-500/10 hover:shadow-[0_0_0_3px_rgba(16,185,129,0.25)] cursor-pointer'
+                          : (availablePoints > 0
+                              ? 'border-yellow-400/40 bg-yellow-500/5 hover:bg-yellow-500/10 cursor-pointer'
+                              : 'border-slate-800 cursor-not-allowed opacity-80')
                     }`
                   }
-                  disabled={!unlocked}
+                  disabled={!canClick}
                 >
-                  <div className="text-sm opacity-80">{l.threshold} XP</div>
+                  <div className="text-sm opacity-80">{l.threshold} pts</div>
                   <div className="text-base font-medium">{l.label}</div>
-                  <div className={`mt-2 text-xs ${unlocked ? "text-emerald-300" : "text-slate-400"}`}>
-                    {unlocked ? "Unlocked — click to claim" : "Keep grinding"}
-                  </div>
+                  {l.claimed ? (
+                    <div className="mt-2 text-xs text-emerald-300">Claimed</div>
+                  ) : canAfford ? (
+                    <div className="mt-2 text-xs text-emerald-300">Click to claim</div>
+                  ) : availablePoints > 0 ? (
+                    <div className="mt-2 text-xs text-yellow-300">Need {l.threshold - availablePoints} more points</div>
+                  ) : (
+                    <div className="mt-2 text-xs text-slate-400">No points available</div>
+                  )}
+                  <div className="mt-1 text-[10px] text-slate-400">Est: {estimateDurationLabel(l.threshold)}</div>
+
+                  {/* Info hover at bottom-right */}
+                  <span className="absolute bottom-2 right-2 group inline-flex">
+                    <Info className="w-4 h-4 text-slate-400 group-hover:text-slate-200" />
+                    <span className="pointer-events-none absolute z-50 right-0 bottom-full mb-2 hidden w-72 md:w-96 max-w-[calc(100vw-32px)] break-words whitespace-normal group-hover:block rounded-xl border border-slate-700 bg-slate-900/95 p-3 text-[11px] leading-relaxed text-slate-200 shadow-2xl">
+                      {l.description || defaultDescription(l.label, l.threshold)}
+                    </span>
+                  </span>
                 </button>
               );
             })}
+          </div>
           </div>
         </div>
 
         {/* Footer Actions */}
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={resetDay} className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl">
-            <RotateCcw className="w-4 h-4"/> Reset Day
-          </button>
 
-          <label className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl cursor-pointer">
+          {/* <label className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl cursor-pointer">
             <Upload className="w-4 h-4"/> Import
             <input type="file" accept="application/json" className="hidden" onChange={(e) => e.target.files?.[0] && importJSON(e.target.files[0])} />
           </label>
 
           <button onClick={exportJSON} className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl">
             <Download className="w-4 h-4"/> Export
-          </button>
+          </button> */}
 
-          <button onClick={() => setShowSettings(s => !s)} className="ml-auto inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl">
-            <Settings className="w-4 h-4"/> Settings
-          </button>
+          <span className="ml-auto" />
         </div>
 
-        {/* Settings Panel */}
+        {/* Settings Modal */}
+        <AnimatePresence>
         {showSettings && (
-          <div className="mt-4 bg-slate-900/80 rounded-2xl p-4">
-            <h3 className="text-lg font-semibold mb-3">Settings</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <div className="text-sm mb-1 opacity-80">Auto streak (reset to 0 on missed goal)</div>
-                <label className="inline-flex items-center gap-2">
-                  <input type="checkbox" checked={autoCarryStreak} onChange={(e) => setAutoCarryStreak(e.target.checked)} />
-                  <span className="text-sm">Enabled</span>
-                </label>
-              </div>
-              <div>
-                <div className="text-sm mb-1 opacity-80">OpenAI API key (stored locally)</div>
-                <input
-                  type="password"
-                  className="w-full bg-slate-950 rounded px-2 py-1"
-                  placeholder="sk-..."
-                  value={openaiKey}
-                  onChange={(e) => setOpenaiKey(e.target.value)}
-                />
-                <div className="text-[10px] mt-1 text-slate-500">Key is stored in your browser only and sent directly to OpenAI.</div>
-              </div>
-              <div>
-                <div className="text-sm mb-1 opacity-80">Default available minutes per day</div>
-                <input
-                  type="number"
-                  className="w-28 bg-slate-950 rounded px-2 py-1"
-                  value={defaultAvailableMinutes}
-                  onChange={(e) => setDefaultAvailableMinutes(Math.max(30, Math.min(720, parseInt(e.target.value || 0, 10))))}
-                />
-              </div>
-              <div>
-                <div className="text-sm mb-1 opacity-80">Edit loot drops</div>
-                <div className="space-y-2">
-                  {loot.map((l, i) => (
-                    <div key={l.id} className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        className="w-24 bg-slate-950 rounded px-2 py-1"
-                        value={l.threshold}
-                        onChange={(e) => {
-                          const v = clamp(parseInt(e.target.value || 0, 10), 0, 100000);
-                          setLoot(prev => prev.map(x => x.id === l.id ? { ...x, threshold: v } : x));
-                        }}
-                      />
-                      <input
-                        className="flex-1 bg-slate-950 rounded px-2 py-1"
-                        value={l.label}
-                        onChange={(e) => setLoot(prev => prev.map(x => x.id === l.id ? { ...x, label: e.target.value } : x))}
-                      />
-                      <button className="text-xs text-slate-400 hover:text-red-400" onClick={() => setLoot(prev => prev.filter(x => x.id !== l.id))}>Delete</button>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => setLoot(prev => [...prev, { id: crypto.randomUUID(), threshold: 150, label: "Your reward" }])}
-                    className="text-sm text-indigo-300 hover:text-indigo-200"
-                  >+ Add reward</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+            <SettingsModal
+              autoCarryStreak={autoCarryStreak}
+              setAutoCarryStreak={setAutoCarryStreak}
+              dailyGoal={dailyGoal}
+              setDailyGoal={setDailyGoal}
+              openaiKey={openaiKey}
+              setOpenaiKey={setOpenaiKey}
+              defaultAvailableMinutes={defaultAvailableMinutes}
+              setDefaultAvailableMinutes={setDefaultAvailableMinutes}
+              loot={loot}
+              setLoot={setLoot}
+              onStartProfile={() => {
+                setShowSettings(false);
+                setShowProfileWizard(true);
+              }}
+              onClose={() => setShowSettings(false)}
+            />
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {celebratingLoot && (
@@ -455,6 +555,55 @@ export default function App() {
               }}
             />
           )}
+          {showProfileWizard && (
+            <ProfileWizard
+              onClose={() => setShowProfileWizard(false)}
+              onComplete={async (answers) => {
+                setShowProfileWizard(false);
+                // Use answers to bias new loot recommendations
+                if (!openaiKey) return;
+                setLootRefreshing(true);
+                setLootError("");
+                try {
+                  const system = "You tailor break reward ideas to a user's preferences. Output strictly JSON: {\\\"loot\\\":[{\\\"threshold\\\":number,\\\"label\\\":string,\\\"description\\\":string}]} with 5 base items between 10 and 80 points (ascending), PLUS 1 premium item at least 100 points. Each description must be a helpful, specific paragraph of at least 50 characters describing how to take that break within the day, including mindful and time-bound guidance aligned to the point cost.";
+                  const user = `User answers: ${JSON.stringify(answers)}. Suggest six rewards.`;
+                  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
+                    body: JSON.stringify({
+                      model: "gpt-4o-mini",
+                      messages: [
+                        { role: "system", content: system },
+                        { role: "user", content: user },
+                      ],
+                      temperature: 0.4,
+                      response_format: { type: "json_object" },
+                    }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data?.error?.message || "OpenAI error");
+                  const content = data.choices?.[0]?.message?.content || "";
+                  const parsed = JSON.parse(content);
+                  if (!parsed || !Array.isArray(parsed.loot)) throw new Error("Invalid AI response");
+                  const cleaned = parsed.loot
+                    .map((x) => ({ threshold: Math.floor(Number(x.threshold) || 0), label: String(x.label || "Reward"), description: String(x.description || "") }))
+                    .filter((x) => Number.isFinite(x.threshold) && x.label);
+                  const base = cleaned
+                    .filter((x) => x.threshold >= 10 && x.threshold <= 80)
+                    .sort((a, b) => a.threshold - b.threshold)
+                    .slice(0, 5);
+                  const premium = cleaned.find((x) => x.threshold >= 100) || { threshold: 100, label: "Grand Reward" };
+                  const finalList = [...base, premium]
+                    .map((x) => ({ id: crypto.randomUUID(), threshold: x.threshold, label: x.label, description: ensureDescription(x.label, x.threshold, x.description), claimed: false }));
+                  setLoot(finalList);
+                } catch (e) {
+                  setLootError(e.message || String(e));
+                } finally {
+                  setLootRefreshing(false);
+                }
+              }}
+            />
+          )}
         </AnimatePresence>
 
         <footer className="mt-8 text-center text-xs text-slate-500">
@@ -470,6 +619,235 @@ function Card({ children }) {
     <div className="bg-slate-900/60 rounded-2xl shadow p-4 border border-slate-800/60">
       {children}
     </div>
+  );
+}
+
+function SettingsModal({
+  autoCarryStreak,
+  setAutoCarryStreak,
+  dailyGoal,
+  setDailyGoal,
+  openaiKey,
+  setOpenaiKey,
+  defaultAvailableMinutes,
+  setDefaultAvailableMinutes,
+  loot,
+  setLoot,
+  onStartProfile,
+  onClose,
+}) {
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/70" />
+      <motion.div
+        className="relative z-10 mx-4 w-full max-w-3xl rounded-2xl border border-slate-700 bg-slate-900 p-4 md:p-6 shadow-2xl"
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.98, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 200, damping: 22 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-semibold">Settings</h3>
+          <button className="text-slate-400 hover:text-white" onClick={onClose}>Close</button>
+        </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="text-sm mb-1 opacity-80">Auto streak (reset to 0 on missed goal)</div>
+                <label className="inline-flex items-center gap-2">
+                  <input type="checkbox" checked={autoCarryStreak} onChange={(e) => setAutoCarryStreak(e.target.checked)} />
+                  <span className="text-sm">Enabled</span>
+                </label>
+              </div>
+              <div>
+            <div className="text-sm mb-1 opacity-80">Daily Goal</div>
+            <input
+              type="number"
+              className="w-full bg-slate-950 rounded px-2 py-1"
+              value={dailyGoal}
+              onChange={(e) => setDailyGoal(clamp(parseInt(e.target.value || 0, 10), 0, 100000))}
+            />
+          </div>
+          <div>
+            <div className="text-sm mb-1 opacity-80">Personality profile</div>
+            <div className="text-xs text-slate-400 mb-2">Answer a short set of questions to tailor loot suggestions.</div>
+            <button
+              className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-xl text-sm"
+              onClick={onStartProfile}
+            >
+              Start profile wizard
+            </button>
+          </div>
+          <div>
+            <div className="text-sm mb-1 opacity-80">OpenAI API key (stored locally)</div>
+            <input
+              type="password"
+              className="w-full bg-slate-950 rounded px-2 py-1"
+              placeholder="sk-..."
+              value={openaiKey}
+              onChange={(e) => setOpenaiKey(e.target.value)}
+            />
+            <div className="text-[10px] mt-1 text-slate-500">Key is stored in your browser only and sent directly to OpenAI.</div>
+          </div>
+          <div>
+            <div className="text-sm mb-1 opacity-80">Default available minutes per day</div>
+            <input
+              type="number"
+              className="w-28 bg-slate-950 rounded px-2 py-1"
+              value={defaultAvailableMinutes}
+              onChange={(e) => setDefaultAvailableMinutes(Math.max(30, Math.min(720, parseInt(e.target.value || 0, 10))))}
+            />
+          </div>
+          <div className="md:col-span-2">
+                <div className="text-sm mb-1 opacity-80">Edit loot drops</div>
+                <div className="space-y-2">
+              {loot.map((l) => (
+                    <div key={l.id} className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        className="w-24 bg-slate-950 rounded px-2 py-1"
+                        value={l.threshold}
+                        onChange={(e) => {
+                          const v = clamp(parseInt(e.target.value || 0, 10), 0, 100000);
+                          setLoot(prev => prev.map(x => x.id === l.id ? { ...x, threshold: v } : x));
+                        }}
+                      />
+                      <input
+                        className="flex-1 bg-slate-950 rounded px-2 py-1"
+                        value={l.label}
+                        onChange={(e) => setLoot(prev => prev.map(x => x.id === l.id ? { ...x, label: e.target.value } : x))}
+                      />
+                      <button className="text-xs text-slate-400 hover:text-red-400" onClick={() => setLoot(prev => prev.filter(x => x.id !== l.id))}>Delete</button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setLoot(prev => [...prev, { id: crypto.randomUUID(), threshold: 150, label: "Your reward" }])}
+                    className="text-sm text-indigo-300 hover:text-indigo-200"
+                  >+ Add reward</button>
+                </div>
+              </div>
+            </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function defaultDescription(label, threshold) {
+  const est = estimateDurationLabel(Math.floor(Number(threshold) || 0));
+  const name = String(label || "Reward");
+  return (
+    `${name}: This reward is designed as a mindful break you can accomplish in ${est}. Step away from your current task, change your environment, and give your brain space to reset. ` +
+    `Use this time with intention—silence notifications, hydrate, breathe deeply, and focus on the activity itself without multitasking. ` +
+    `Treat it as a mini-ritual that marks progress: you earned it. When you return, do a quick check-in: what’s the very next small step? ` +
+    `Avoid letting this break expand beyond its intended window. If it feels too short, note it for a future, higher-tier reward. ` +
+    `Respecting the boundary keeps momentum high while giving you real rest.`
+  );
+}
+
+function longDescription(label, threshold) {
+  const est = estimateDurationLabel(Math.floor(Number(threshold) || 0));
+  return (
+    `${label}: Take a deliberate break lasting ${est}. Begin by closing your open tabs or pausing notifications to create a calm buffer. ` +
+    `Stand up, stretch your shoulders, neck, and back, and take three slow breaths to switch gears. ` +
+    `If it’s a snack, choose something you genuinely enjoy and eat slowly—notice flavors, temperature, and texture. ` +
+    `If it’s a video, queue one item that fits within the time box, start it from the beginning, and avoid autoplay. ` +
+    `If it’s movement, pick a simple routine: a short walk, light stretching, or a few mobility drills. ` +
+    `Focus on being present instead of scrolling or context switching. ` +
+    `As the time ends, jot a one-line note about what you just did and how you feel. ` +
+    `Then decide the next single action when you return (e.g., “open editor” or “write the function signature”). ` +
+    `This rhythm makes rewards feel restorative and keeps your momentum sustainable across the day.`
+  );
+}
+
+function ensureDescription(label, threshold, desc) {
+  const text = String(desc || "");
+  if (text.length >= 50) return text;
+  return longDescription(label, threshold);
+}
+
+function generateFallbackLoot() {
+  const base = [
+    { threshold: 15, label: "Stretch + hydrate", description: longDescription("Stretch + hydrate", 15) },
+    { threshold: 25, label: "Walk outside", description: longDescription("Walk outside", 25) },
+    { threshold: 40, label: "Guilt‑free video", description: longDescription("Guilt‑free video", 40) },
+    { threshold: 60, label: "Learning session", description: longDescription("Learning session", 60) },
+    { threshold: 80, label: "Deep rest", description: longDescription("Deep rest", 80) },
+  ];
+  const premium = { threshold: 100, label: "Premium treat", description: longDescription("Premium treat", 100) };
+  return [...base, premium].map((x) => ({ id: crypto.randomUUID(), claimed: false, ...x }));
+}
+
+function ProfileWizard({ onClose, onComplete }) {
+  const questions = [
+    { key: "reward_type", q: "What motivates you more today?", options: ["Food & treats", "Breaks & leisure", "Fitness/health", "Learning/skills", "Shopping/gadgets"] },
+    { key: "time_of_day", q: "When do you prefer rewards?", options: ["Morning", "Afternoon", "Evening", "Anytime"] },
+    { key: "budget", q: "Preferred reward size?", options: ["Small/free", "Modest", "Premium"] },
+    { key: "social", q: "Alone or social rewards?", options: ["Solo", "With friends/family", "Either"] },
+    { key: "activity", q: "Active or passive rewards?", options: ["Active (walk, gym)", "Passive (video, nap)", "Mix"] },
+    { key: "wellbeing", q: "Focus for wellbeing today?", options: ["Rest", "Movement", "Nutrition", "Focus", "Play"] },
+    { key: "diet", q: "Any dietary constraints?", options: ["None", "Low sugar", "Vegan/veg", "Gluten-free"] },
+    { key: "screen", q: "Screen time preference?", options: ["Less screen", "Fine with screen"] },
+    { key: "location", q: "Where are you working?", options: ["Home", "Office", "Cafe/remote"] },
+    { key: "budget_limit", q: "Monetary budget for rewards?", options: ["$0", "$1–$5", "$5–$15", "$15+"] },
+  ];
+  const [idx, setIdx] = useState(0);
+  const [answers, setAnswers] = useState({});
+  const cur = questions[idx];
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/70" />
+      <motion.div
+        className="relative z-10 mx-4 w-full max-w-md rounded-2xl border border-indigo-400/30 bg-slate-900/90 p-4 shadow-xl"
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.98, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 200, damping: 22 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-xs text-slate-400">Question {idx + 1} of {questions.length}</div>
+        <h3 className="mt-1 text-lg font-semibold">{cur.q}</h3>
+        <div className="mt-3 grid grid-cols-1 gap-2">
+          {cur.options.map((opt) => (
+            <button
+              key={opt}
+              className="w-full text-left rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2"
+              onClick={() => {
+                const next = { ...answers, [cur.key]: opt };
+                if (idx < questions.length - 1) {
+                  setAnswers(next);
+                  setIdx(idx + 1);
+                } else {
+                  onComplete(next);
+                }
+              }}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            className="text-xs text-slate-300 hover:text-white"
+            onClick={() => (idx > 0 ? setIdx(idx - 1) : onClose())}
+          >
+            {idx > 0 ? "Back" : "Cancel"}
+          </button>
+          </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -601,6 +979,12 @@ function estimateXpForLabel(label) {
   return buckets[score] || 10;
 }
 
+function estimateDurationLabel(points) {
+  if (points > 80) return "~60+ min";
+  if (points > 40) return "~30–45 min";
+  return "~15–20 min";
+}
+
 function GeneratorModal({ onClose, onGenerateReplace, onGenerateAppend, openaiKey, defaultMinutes = 240 }) {
   const [text, setText] = useState("");
   const [minutes, setMinutes] = useState(defaultMinutes);
@@ -719,8 +1103,8 @@ function GeneratorModal({ onClose, onGenerateReplace, onGenerateAppend, openaiKe
             >
               {loading ? "Generating…" : "AI Generate (append)"}
             </button>
-          </div>
-        </div>
+      </div>
+    </div>
         {error && <div className="mt-2 text-xs text-red-400">{error}</div>}
         <div className="mt-3 flex items-center gap-2">
           <button
@@ -827,7 +1211,7 @@ function CelebrationModal({ loot, onClose }) {
             />
           </motion.div>
         ))}
-      </div>
+    </div>
     </motion.div>
   );
 }
