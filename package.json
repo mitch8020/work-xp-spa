@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "start": "vite preview",
+    "start": "serve -s dist",
     "heroku-postbuild": "npm run build"
   },
   "dependencies": {
