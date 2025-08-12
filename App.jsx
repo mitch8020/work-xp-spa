@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Minus, RotateCcw, Save, Download, Upload, Trophy, Target, Swords, Settings, RefreshCcw, Info, Trash2, Circle, ListChecks } from "lucide-react";
+import { Plus, Minus, RotateCcw, Save, Download, Upload, Trophy, Target, Swords, Settings, RefreshCcw, Info, Trash2, Circle, ListChecks, Eye, EyeOff } from "lucide-react";
 
 // --- Helpers ---
 const STORAGE_KEY = "work-xp-spa:v1";
@@ -22,6 +22,7 @@ const defaultLoot = [
 ];
 
 const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
+const resolveOpenAIKey = (key) => (key === "hush_hush" ? import.meta.env.VITE_OPENAI_API_KEY : key);
 
 export default function App() {
   const [tasks, setTasks] = useState(defaultTasks);
@@ -177,7 +178,7 @@ export default function App() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${openaiKey}`,
+          Authorization: `Bearer ${resolveOpenAIKey(openaiKey)}`,
         },
         body: JSON.stringify({
           model: "gpt-4o-mini",
@@ -219,18 +220,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-6 flex items-center justify-center">
-      <div className="w-full">
+      <div className="w-full max-w-7xl">
         <header className="mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
           <Swords className="w-6 h-6 md:w-7 md:h-7 text-indigo-400" />
           <h1 className="text-xl md:text-3xl font-semibold flex-1">Work XP — Daily Grind</h1>
-          <button
-            onClick={() => setShowGenerator(true)}
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm"
-            title="Generate tasks"
-          >
-            <ListChecks className="w-4 h-4" />
-            <span className="hidden md:inline">Generate Tasks</span>
-          </button>
+          
           <button
             onClick={resetDay}
             className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm"
@@ -281,7 +275,7 @@ export default function App() {
         {/* Progress Bar */}
         <div className="mb-6">
           <div className="flex justify-between items-end mb-2">
-            <div className="text-sm opacity-80">Progress</div>
+            <div className="text-sm opacity-80">Daily Progress</div>
             <div className="text-sm opacity-80 flex items-center gap-2">
               <span>{totalXP} XP / {dailyGoal} XP</span>
               <span className="opacity-70">({Math.round(progress * 100)}%)</span>
@@ -298,15 +292,15 @@ export default function App() {
         </div>
 
         {/* Main Content: Tasks (left) and Loot (right on desktop) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:items-stretch md:h-[70vh] mb-6">
+        <div className="grid grid-cols-1 gap-4 items-start mb-6">
         {/* Tasks Table */}
-        <div className="bg-slate-900/60 rounded-2xl shadow p-3 md:p-4 md:col-span-2 md:h-full md:flex md:flex-col md:min-h-0">
+        <div className="relative bg-slate-900/60 rounded-2xl shadow p-3 md:p-4">
           <div className="hidden md:grid grid-cols-12 gap-3 px-2 py-2 text-xs uppercase tracking-wide text-slate-400">
             <div className="md:col-span-7">Task</div>
             <div className="text-center md:col-span-3">XP</div>
             <div className="text-right md:col-span-2">Actions</div>
           </div>
-          <div className="md:flex-1 md:min-h-0 md:overflow-y-auto">
+          <div>
             {tasks.length === 0 && (
               <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-6 text-center text-slate-300">
                 <div className="text-sm">Your task list is empty.</div>
@@ -314,9 +308,6 @@ export default function App() {
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                   <button onClick={addTask} className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl text-sm">
                     <Plus className="w-4 h-4"/> Add Task
-                  </button>
-                  <button onClick={() => setShowGenerator(true)} className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-xl text-sm">
-                    Generate Tasks
                   </button>
                 </div>
           </div>
@@ -334,17 +325,17 @@ export default function App() {
               >
                 {/* Mobile condensed row */}
                 <div className="flex items-center gap-2 rounded-xl border border-slate-800/60 bg-slate-900/50 p-2 md:hidden">
-                  <input
+                <input
                     className="flex-1 bg-transparent outline-none rounded focus:ring focus:ring-indigo-500/30 px-2 py-1 text-sm"
-                    value={t.name}
-                    onChange={(e) => updateTask(t.id, { name: e.target.value })}
-                  />
-                  <input
-                    type="number"
+                  value={t.name}
+                  onChange={(e) => updateTask(t.id, { name: e.target.value })}
+                />
+                <input
+                  type="number"
                     className="w-16 bg-slate-950 rounded px-2 py-1 text-center text-xs"
-                    value={t.xp}
-                    onChange={(e) => updateTask(t.id, { xp: clamp(parseInt(e.target.value || 0, 10), 0, 100000) })}
-                  />
+                  value={t.xp}
+                  onChange={(e) => updateTask(t.id, { xp: clamp(parseInt(e.target.value || 0, 10), 0, 100000) })}
+                />
                   <button
                     className="inline-flex items-center justify-center text-slate-400 hover:text-emerald-400"
                     onClick={() => completeTask(t.id)}
@@ -395,8 +386,8 @@ export default function App() {
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
-                  </div>
                 </div>
+              </div>
 
               </motion.div>
             ))}
@@ -404,15 +395,29 @@ export default function App() {
           </div>
 
           <div className="flex items-center justify-between mt-3">
-            <button onClick={addTask} className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl text-sm">
-              <Plus className="w-4 h-4"/> Add Task
+            <button
+              onClick={() => setShowGenerator(true)}
+              className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl text-sm"
+            >
+              <ListChecks className="w-4 h-4"/> Generate Tasks
             </button>
             <div className="text-sm opacity-80 pr-1">Daily Total: <span className="font-semibold">{totalXP} XP</span></div>
           </div>
+
+          {tasks.length > 0 && (
+            <button
+              onClick={addTask}
+              title="Add task"
+              aria-label="Add task"
+              className="absolute z-20 bottom-2 left-1/2 -translate-x-1/2 bg-indigo-600 hover:bg-indigo-500 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Loot / Rewards */}
-        <div className="bg-slate-900/60 rounded-2xl shadow p-3 md:p-4 md:col-span-1 md:h-full md:overflow-auto">
+        <div className="bg-slate-900/60 rounded-2xl shadow p-3 md:p-4">
           <div className="flex items-center justify-between mb-2 md:mb-3">
             <div className="flex items-center gap-2">
             <Trophy className="w-5 h-5"/>
@@ -569,7 +574,7 @@ export default function App() {
                   const user = `User answers: ${JSON.stringify(answers)}. Suggest six rewards.`;
                   const res = await fetch("https://api.openai.com/v1/chat/completions", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${resolveOpenAIKey(openaiKey)}` },
                     body: JSON.stringify({
                       model: "gpt-4o-mini",
                       messages: [
@@ -636,6 +641,7 @@ function SettingsModal({
   onStartProfile,
   onClose,
 }) {
+  const [showKey, setShowKey] = useState(false);
   return (
     <motion.div
       className="fixed inset-0 z-50 flex items-center justify-center"
@@ -686,52 +692,98 @@ function SettingsModal({
           </div>
           <div>
             <div className="text-sm mb-1 opacity-80">OpenAI API key (stored locally)</div>
-            <input
-              type="password"
-              className="w-full bg-slate-950 rounded px-2 py-1"
-              placeholder="sk-..."
-              value={openaiKey}
-              onChange={(e) => setOpenaiKey(e.target.value)}
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type={showKey ? "text" : "password"}
+                className="w-full bg-slate-950 rounded px-2 py-1"
+                placeholder="sk-..."
+                value={openaiKey}
+                onChange={(e) => setOpenaiKey(e.target.value)}
+              />
+              <button
+                type="button"
+                className="inline-flex items-center justify-center px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
+                onClick={() => setShowKey((v) => !v)}
+                title={showKey ? "Hide" : "Show"}
+              >
+                {showKey ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
+              </button>
+            </div>
             <div className="text-[10px] mt-1 text-slate-500">Key is stored in your browser only and sent directly to OpenAI.</div>
           </div>
           <div>
             <div className="text-sm mb-1 opacity-80">Default available minutes per day</div>
-            <input
-              type="number"
-              className="w-28 bg-slate-950 rounded px-2 py-1"
-              value={defaultAvailableMinutes}
-              onChange={(e) => setDefaultAvailableMinutes(Math.max(30, Math.min(720, parseInt(e.target.value || 0, 10))))}
-            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={() => setDefaultAvailableMinutes((v) => Math.max(30, (parseInt(v, 10) || 0) - 30))}
+                disabled={defaultAvailableMinutes <= 30}
+                title="-30 min"
+              >
+                −
+              </button>
+              <input
+                type="number"
+                className="w-24 bg-slate-950 rounded px-2 py-1 text-center"
+                value={defaultAvailableMinutes}
+                onChange={(e) => setDefaultAvailableMinutes(Math.max(30, Math.min(720, parseInt(e.target.value || 0, 10))))}
+              />
+              <button
+                type="button"
+                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={() => setDefaultAvailableMinutes((v) => Math.min(720, (parseInt(v, 10) || 0) + 30))}
+                disabled={defaultAvailableMinutes >= 720}
+                title="+30 min"
+              >
+                +
+              </button>
+            </div>
+            <div className="text-[10px] mt-1 text-slate-500">Step: 30 min (30–720)</div>
           </div>
           <div className="md:col-span-2">
-                <div className="text-sm mb-1 opacity-80">Edit loot drops</div>
-                <div className="space-y-2">
+            <div className="text-sm mb-1 opacity-80">Edit loot drops</div>
+            <div className="space-y-1">
               {loot.map((l) => (
-                    <div key={l.id} className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        className="w-24 bg-slate-950 rounded px-2 py-1"
-                        value={l.threshold}
-                        onChange={(e) => {
-                          const v = clamp(parseInt(e.target.value || 0, 10), 0, 100000);
-                          setLoot(prev => prev.map(x => x.id === l.id ? { ...x, threshold: v } : x));
-                        }}
-                      />
-                      <input
-                        className="flex-1 bg-slate-950 rounded px-2 py-1"
-                        value={l.label}
-                        onChange={(e) => setLoot(prev => prev.map(x => x.id === l.id ? { ...x, label: e.target.value } : x))}
-                      />
-                      <button className="text-xs text-slate-400 hover:text-red-400" onClick={() => setLoot(prev => prev.filter(x => x.id !== l.id))}>Delete</button>
-                    </div>
-                  ))}
+                <div
+                  key={l.id}
+                  className="grid grid-cols-[auto_1fr_auto] items-center gap-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="sm:hidden text-[10px] uppercase tracking-wide text-slate-400">Points</span>
+                    <input
+                      type="number"
+                      className="w-12 bg-slate-950 rounded px-2 py-1 text-xs"
+                      value={l.threshold}
+                      onChange={(e) => {
+                        const v = clamp(parseInt(e.target.value || 0, 10), 0, 100000);
+                        setLoot(prev => prev.map(x => x.id === l.id ? { ...x, threshold: v } : x));
+                      }}
+                    />
+                  </div>
+                  <input
+                    className="w-full bg-slate-950 rounded px-2 py-1 text-sm"
+                    value={l.label}
+                    onChange={(e) => setLoot(prev => prev.map(x => x.id === l.id ? { ...x, label: e.target.value } : x))}
+                  />
                   <button
-                    onClick={() => setLoot(prev => [...prev, { id: crypto.randomUUID(), threshold: 150, label: "Your reward" }])}
-                    className="text-sm text-indigo-300 hover:text-indigo-200"
-                  >+ Add reward</button>
+                    className="justify-self-end inline-flex items-center justify-center text-slate-400 hover:text-red-400"
+                    onClick={() => setLoot(prev => prev.filter(x => x.id !== l.id))}
+                    aria-label="Delete reward"
+                    title="Delete reward"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-              </div>
+              ))}
+              {loot.length < 6 && (
+                <button
+                  onClick={() => setLoot(prev => [...prev, { id: crypto.randomUUID(), threshold: 150, label: "Your reward" }])}
+                  className="text-sm text-indigo-300 hover:text-indigo-200"
+                >+ Add reward</button>
+              )}
+            </div>
+          </div>
             </div>
       </motion.div>
     </motion.div>
@@ -1005,7 +1057,7 @@ function GeneratorModal({ onClose, onGenerateReplace, onGenerateAppend, openaiKe
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${openaiKey}`,
+          Authorization: `Bearer ${resolveOpenAIKey(openaiKey)}`,
         },
         body: JSON.stringify({
           model: "gpt-4o-mini",
