@@ -49,7 +49,6 @@ export default function App() {
   const [streakIncrementedToday, setStreakIncrementedToday] = useState(false);
   const [estimatingTaskId, setEstimatingTaskId] = useState(null);
   const [defaultTasksOverride, setDefaultTasksOverride] = useState(null);
-  const [defaultTasksIncludeStreak, setDefaultTasksIncludeStreak] = useState(true);
   const [defaultLootOverride, setDefaultLootOverride] = useState(null);
   const [showDefaultTasksEditor, setShowDefaultTasksEditor] = useState(false);
   const [showDefaultLootEditor, setShowDefaultLootEditor] = useState(false);
@@ -72,7 +71,6 @@ export default function App() {
       if (parsed.profileAnswers) setProfileAnswers(parsed.profileAnswers);
       if (parsed.dailyEarnedXP != null) setDailyEarnedXP(parsed.dailyEarnedXP);
       if (parsed.defaultTasksOverride) setDefaultTasksOverride(parsed.defaultTasksOverride);
-      if (parsed.defaultTasksIncludeStreak != null) setDefaultTasksIncludeStreak(Boolean(parsed.defaultTasksIncludeStreak));
       if (parsed.defaultLootOverride) setDefaultLootOverride(parsed.defaultLootOverride);
     } catch (e) {
       console.warn("Failed to load saved state", e);
@@ -80,7 +78,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const state = { tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers, streakIncrementedToday, defaultTasksOverride, defaultLootOverride, defaultTasksIncludeStreak };
+    const state = { tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers, streakIncrementedToday, defaultTasksOverride, defaultLootOverride };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     localStorage.setItem("work-xp-spa:completedLog", JSON.stringify(completedLog));
   }, [tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers, streakIncrementedToday, completedLog]);
@@ -119,8 +117,8 @@ export default function App() {
     if (Array.isArray(defaultTasksOverride) && defaultTasksOverride.length) {
       const nextTarget = Math.max(1, (parseInt(currentStreakDays, 10) || 0) + 1);
       const base = defaultTasksOverride;
-      const finalList = defaultTasksIncludeStreak ? [...base, { name: `Streak bonus (${nextTarget} days in a row)`, xp: 10 }] : base;
-      return finalList.map((t) => ({ id: crypto.randomUUID(), completed: false, ...t }));
+      const withStreak = [...base, { name: `Streak bonus (${nextTarget} days in a row)`, xp: 10 }];
+      return withStreak.map((t) => ({ id: crypto.randomUUID(), completed: false, ...t }));
     }
     return buildDefaultTasksForStreak(currentStreakDays);
   };
@@ -467,13 +465,7 @@ export default function App() {
                 <button onClick={() => setShowLootEditor(true)} title="Edit loot drops" aria-label="Edit loot drops" className="inline-flex items-center justify-center px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white">
                   <Edit3 className="w-4 h-4" />
                 </button>
-                <button
-                  onClick={() => { if (openaiKey) setShowProfileWizard(true); }}
-                  disabled={!openaiKey}
-                  title={openaiKey ? "Profile wizard" : "Add your OpenAI key in Settings"}
-                  aria-label="Profile wizard"
-                  className={`inline-flex items-center justify-center px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl ${openaiKey ? "bg-slate-800 hover:bg-slate-700 text-white" : "bg-slate-800/50 text-slate-400 cursor-not-allowed"}`}
-                >
+                <button onClick={() => setShowProfileWizard(true)} title="Profile wizard" aria-label="Profile wizard" className="inline-flex items-center justify-center px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white">
                   <Sparkles className="w-4 h-4" />
                 </button>
                 <button onClick={refreshLootFromAI} disabled={lootRefreshing || !openaiKey} title={openaiKey ? "Refresh rewards with AI" : "Add your OpenAI key in Settings"} className={`inline-flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm ${openaiKey ? "bg-slate-800 hover:bg-slate-700 text-white" : "bg-slate-800/50 text-slate-400 cursor-not-allowed"}`}>
@@ -613,8 +605,7 @@ export default function App() {
           {showDefaultTasksEditor && (
             <DefaultTasksEditorModal
               initialTasks={defaultTasksOverride}
-              initialIncludeStreak={defaultTasksIncludeStreak}
-              onSave={({ items, includeStreak }) => { setDefaultTasksOverride(items); setDefaultTasksIncludeStreak(includeStreak); setShowDefaultTasksEditor(false); setShowSettings(true); }}
+              onSave={(items) => { setDefaultTasksOverride(items); setShowDefaultTasksEditor(false); setShowSettings(true); }}
               onClose={() => { setShowDefaultTasksEditor(false); setShowSettings(true); }}
             />
           )}
