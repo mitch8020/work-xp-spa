@@ -43,6 +43,14 @@ export function minutesForXp(xp) {
   return n * 2;
 }
 
+// Map loot threshold to a practical break timer length
+export function lootMinutesForThreshold(threshold) {
+  const t = Math.max(0, parseInt(threshold, 10) || 0);
+  if (t > 80) return 60;
+  if (t > 40) return 40;
+  return 20;
+}
+
 export function formatDurationMs(ms) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const minutes = Math.floor(totalSeconds / 60);
