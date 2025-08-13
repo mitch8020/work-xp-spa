@@ -37,6 +37,21 @@ export function estimateDurationLabel(points) {
   return "~15–20 min";
 }
 
+export function minutesForXp(xp) {
+  const n = Math.max(0, parseInt(xp, 10) || 0);
+  // rough mapping used elsewhere: 5xp≈10m, 10xp≈20m, 25xp≈50m
+  return n * 2;
+}
+
+export function formatDurationMs(ms) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const mm = String(minutes).padStart(2, "0");
+  const ss = String(seconds).padStart(2, "0");
+  return `${mm}:${ss}`;
+}
+
 export function defaultDescription(label, threshold) {
   const est = estimateDurationLabel(Math.floor(Number(threshold) || 0));
   const name = String(label || "Reward");
@@ -86,13 +101,19 @@ export function nudgeRewards(list) {
 export function generateFallbackLoot() {
   const base = [
     { threshold: 15, label: "Stretch + hydrate", description: longDescription("Stretch + hydrate", 15) },
+    { threshold: 20, label: "Breathe + reset", description: longDescription("Breathe + reset", 20) },
     { threshold: 25, label: "Walk outside", description: longDescription("Walk outside", 25) },
-    { threshold: 40, label: "Guilt‑free video", description: longDescription("Guilt‑free video", 40) },
+    { threshold: 30, label: "Snack break", description: longDescription("Snack break", 30) },
+    { threshold: 40, label: "Guilt‑free YouTube video", description: longDescription("Guilt‑free YouTube break", 40) },
+    { threshold: 50, label: "Lunch break", description: longDescription("Lunch break", 50) },
     { threshold: 60, label: "Learning session", description: longDescription("Learning session", 60) },
-    { threshold: 80, label: "Deep rest", description: longDescription("Deep rest", 80) },
+    { threshold: 80, label: "Nap time", description: longDescription("Nap time", 80) },
   ];
-  const premium = { threshold: 100, label: "Premium treat", description: longDescription("Premium treat", 100) };
-  return [...base, premium].map((x) => ({ id: crypto.randomUUID(), claimed: false, ...x }));
+  const premium = [
+    { threshold: 100, label: "Premium treat", description: longDescription("Premium treat", 100) },
+    { threshold: 140, label: "Extended break", description: longDescription("Extended break", 140) },
+  ];
+  return [...base, ...premium].map((x) => ({ id: crypto.randomUUID(), claimed: false, ...x }));
 }
 
 export function generateTasksFromTodo(rawItems) {
@@ -183,19 +204,18 @@ export function estimateXpForLabel(label) {
   return buckets[score] || 10;
 }
 
-export const defaultTasks = [
-  { id: crypto.randomUUID(), name: "Open laptop & set up environment", xp: 5, completed: false },
-  { id: crypto.randomUUID(), name: "Finish a tiny task (5–10 min)", xp: 10, completed: false },
-  { id: crypto.randomUUID(), name: "Solve a tricky bug", xp: 20, completed: false },
-  { id: crypto.randomUUID(), name: "Push code to repo", xp: 15, completed: false },
-  { id: crypto.randomUUID(), name: "Work uninterrupted for 25 min (Pomodoro)", xp: 10, completed: false },
-  { id: crypto.randomUUID(), name: "Streak bonus (3+ days in a row)", xp: 10, completed: false },
-];
+// Build the default tasks list dynamically so the streak bonus reflects the next target day
+export function buildDefaultTasksForStreak(currentStreakDays) {
+  const nextTarget = Math.max(1, (parseInt(currentStreakDays, 10) || 0) + 1);
+  const base = [
+    { name: "Open laptop & set up environment", xp: 5 },
+    { name: "Finish a tiny task (5–10 min)", xp: 5 },
+    { name: "Journal your thoughts for the day", xp: 10 },
+    { name: `Streak bonus (${nextTarget} days in a row)`, xp: 10 },
+  ];
+  return base.map((t) => ({ id: crypto.randomUUID(), completed: false, ...t }));
+}
 
-export const defaultLoot = [
-  { id: 1, threshold: 15, label: "Favorite snack", description: longDescription("Favorite snack", 15), claimed: false },
-  { id: 2, threshold: 40, label: "Guilt‑free YouTube break", description: longDescription("Guilt‑free YouTube break", 40), claimed: false },
-  { id: 3, threshold: 70, label: "Nice lunch or game time", description: longDescription("Nice lunch or game time", 70), claimed: false },
-];
+export const defaultLoot = generateFallbackLoot();
 
 

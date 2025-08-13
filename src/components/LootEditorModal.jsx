@@ -60,7 +60,7 @@ export default function LootEditorModal({ loot, setLoot, onClose }) {
               </button>
             </div>
           ))}
-          {loot.length < 6 && (
+          {loot.length < 10 && (
             <button
               onClick={() => setLoot(prev => [...prev, { id: crypto.randomUUID(), threshold: 150, label: "Your reward" }])}
               className="text-sm text-indigo-300 hover:text-indigo-200"

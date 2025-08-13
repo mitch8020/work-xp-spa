@@ -22,7 +22,7 @@ export default function ProfileWizard({ onClose, onComplete }) {
       <div className="absolute inset-0 bg-black/70" />
       <motion.div className="relative z-10 mx-4 w-full max-w-md rounded-2xl border border-indigo-400/30 bg-slate-900/90 p-4 shadow-xl" initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.98, opacity: 0 }} transition={{ type: "spring", stiffness: 200, damping: 22 }} onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-semibold">Profile Wizard</h2>
-        <div className="mt-1 text-xs text-slate-400">Answer a few quick questions so we can tailor loot drops to what you actually enjoy. Your choices influence the six rewards and their descriptions.</div>
+        <div className="mt-1 text-xs text-slate-400">Answer a few quick questions so we can tailor loot drops to what you actually enjoy. Your choices influence the ten rewards and their descriptions.</div>
         <h3 className="mt-2 text-lg font-semibold">{cur.q}</h3>
         <div className="mt-3 grid grid-cols-1 gap-2">
           {cur.options.map((opt) => (

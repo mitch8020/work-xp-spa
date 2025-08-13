@@ -41,7 +41,7 @@ export default function SettingsModal({
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <div className="text-sm mb-1 opacity-80">Auto streak (reset to 0 on missed goal)</div>
+            <div className="text-sm mb-1 opacity-80">Track streak (reset to 0 on missed goal)</div>
             <label className="inline-flex items-center gap-2">
               <input type="checkbox" checked={autoCarryStreak} onChange={(e) => setAutoCarryStreak(e.target.checked)} />
               <span className="text-sm">Enabled</span>
@@ -55,37 +55,6 @@ export default function SettingsModal({
               value={dailyGoal}
               onChange={(e) => setDailyGoal(clamp(parseInt(e.target.value || 0, 10), 0, 100000))}
             />
-          </div>
-          <div>
-            <div className="text-sm mb-1 opacity-80">Personality profile</div>
-            <div className="text-xs text-slate-400 mb-2">Answer a short set of questions to tailor loot suggestions.</div>
-            <button
-              className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-xl text-sm"
-              onClick={onStartProfile}
-            >
-              Start profile wizard
-            </button>
-          </div>
-          <div>
-            <div className="text-sm mb-1 opacity-80">OpenAI API key (stored locally)</div>
-            <div className="flex items-center gap-2">
-              <input
-                type={showKey ? "text" : "password"}
-                className="w-full bg-slate-950 rounded px-2 py-1"
-                placeholder="sk-..."
-                value={openaiKey}
-                onChange={(e) => setOpenaiKey(e.target.value)}
-              />
-              <button
-                type="button"
-                className="inline-flex items-center justify-center px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
-                onClick={() => setShowKey((v) => !v)}
-                title={showKey ? "Hide" : "Show"}
-              >
-                {showKey ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
-              </button>
-            </div>
-            <div className="text-[10px] mt-1 text-slate-500">Key is stored in your browser only and sent directly to OpenAI.</div>
           </div>
           <div>
             <div className="text-sm mb-1 opacity-80">Default available minutes per day</div>
@@ -116,6 +85,27 @@ export default function SettingsModal({
               </button>
             </div>
             <div className="text-[10px] mt-1 text-slate-500">Step: 30 min (30–720)</div>
+          </div>
+          <div>
+            <div className="text-sm mb-1 opacity-80">OpenAI API key (stored locally)</div>
+            <div className="flex items-center gap-2">
+              <input
+                type={showKey ? "text" : "password"}
+                className="w-full bg-slate-950 rounded px-2 py-1"
+                placeholder="sk-..."
+                value={openaiKey}
+                onChange={(e) => setOpenaiKey(e.target.value)}
+              />
+              <button
+                type="button"
+                className="inline-flex items-center justify-center px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
+                onClick={() => setShowKey((v) => !v)}
+                title={showKey ? "Hide" : "Show"}
+              >
+                {showKey ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
+              </button>
+            </div>
+            <div className="text-[10px] mt-1 text-slate-500">Key is stored in your browser only and sent directly to OpenAI.</div>
           </div>
         </div>
       </motion.div>

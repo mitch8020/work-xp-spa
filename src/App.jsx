@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Minus, RotateCcw, Swords, Settings, RefreshCcw, Info, Trash2, Circle, ListChecks, Eye, EyeOff, X, Loader2, Sparkles, Edit3, Flame, Package, Trophy, Target } from "lucide-react";
-import { Card, SettingsModal, LootEditorModal, GeneratorModal, CelebrationModal, ProfileWizard } from "./components/index.js";
+import { Plus, Minus, RotateCcw, Swords, Settings, RefreshCcw, Info, Trash2, Circle, ListChecks, Eye, EyeOff, X, Loader2, Sparkles, Edit3, Flame, Package, Trophy, Target, Clock } from "lucide-react";
+import { Card, SettingsModal, LootEditorModal, GeneratorModal, CelebrationModal, ProfileWizard, TaskTimerModal, GoalCongratsModal } from "./components/index.js";
 import {
   STORAGE_KEY,
   todayISO,
@@ -16,12 +16,12 @@ import {
   nudgeRewards,
   generateFallbackLoot,
   generateTasksFromTodo,
-  defaultTasks,
   defaultLoot,
+  buildDefaultTasksForStreak,
 } from "./helpers.jsx";
 
 export default function App() {
-  const [tasks, setTasks] = useState(defaultTasks);
+  const [tasks, setTasks] = useState(buildDefaultTasksForStreak(0));
   const [dailyGoal, setDailyGoal] = useState(100);
   const [loot, setLoot] = useState(defaultLoot);
   const [streak, setStreak] = useState(0);
@@ -42,6 +42,11 @@ export default function App() {
   const [dailyEarnedXP, setDailyEarnedXP] = useState(0);
   const [lootVersion, setLootVersion] = useState(0);
   const [showLootEditor, setShowLootEditor] = useState(false);
+  const [timerTask, setTimerTask] = useState(null);
+  const [completedLog, setCompletedLog] = useState([]);
+  const [showGoalCongrats, setShowGoalCongrats] = useState(false);
+  const [hasShownGoalCongrats, setHasShownGoalCongrats] = useState(false);
+  const [streakIncrementedToday, setStreakIncrementedToday] = useState(false);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -66,9 +71,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const state = { tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers };
+    const state = { tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers, streakIncrementedToday };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers]);
+    localStorage.setItem("work-xp-spa:completedLog", JSON.stringify(completedLog));
+  }, [tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers, streakIncrementedToday, completedLog]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -96,6 +102,7 @@ export default function App() {
     const xp = Math.max(0, Number(task.xp) || 0);
     setLifetimeXP((v) => v + xp);
     setDailyEarnedXP((v) => v + xp);
+    setCompletedLog((log) => [...log, { id: crypto.randomUUID(), name: task.name, xp: task.xp, durationMs: 0, completedAt: Date.now() }]);
     setTasks((ts) => ts.filter((t) => t.id !== id));
   };
   const updateTask = (id, patch) => setTasks(ts => ts.map(t => t.id === id ? { ...t, ...patch } : t));
@@ -106,10 +113,22 @@ export default function App() {
     const metGoal = totalXP >= dailyGoal && dailyGoal > 0;
     const confirmText = metGoal ? "Reset day and increment streak? (You met your goal!)" : "Reset day? (Today's progress will be cleared)";
     if (!confirm(confirmText)) return;
-    setTasks(ts => ts.map(t => ({ ...t, completed: false })));
+    // Restore default task list as undone, streak bonus reflects next streak day
+    setTasks(buildDefaultTasksForStreak(metGoal ? streak + 1 : streak));
     setDailyEarnedXP(0);
+    setCompletedLog([]);
     setLastReset(todayISO());
     if (autoCarryStreak) setStreak(s => (metGoal ? s + 1 : 0));
+    setShowGoalCongrats(false);
+    setHasShownGoalCongrats(false);
+    setStreakIncrementedToday(false);
+
+    // Refresh loot list on reset (AI if key present, else local fallback)
+    setOpenLootInfoId(null);
+    setLoot([]);
+    setLootVersion((v) => v + 1);
+    const fallback = generateFallbackLoot();
+    setLoot(fallback);
   };
 
   async function refreshLootFromAI() {
@@ -120,7 +139,7 @@ export default function App() {
       setOpenLootInfoId(null);
       setLoot([]);
       setLootVersion((v) => v + 1);
-      const system = "You tailor break reward ideas to a user's preferences. Output strictly JSON: {\\\"loot\\\":[{\\\"threshold\\\":number,\\\"label\\\":string,\\\"description\\\":string}]} with 5 base items between 10 and 80 points (ascending), PLUS 1 premium item at least 100 points. Each description must be a helpful, specific paragraph of at least 50 characters describing how to take that break within the day, including mindful and time-bound guidance aligned to the point cost.";
+      const system = "You tailor break reward ideas to a user's preferences. Output strictly JSON: {\\\"loot\\\":[{\\\"threshold\\\":number,\\\"label\\\":string,\\\"description\\\":string}]} with 8 base items between 10 and 80 points (ascending), PLUS 2 premium item at least 100 points. Each description must be a helpful, specific paragraph of at least 50 characters describing how to take that break within the day, including mindful and time-bound guidance aligned to the point cost.";
       const prevSummary = loot.map(l=>`${l.label}`).join(" | ");
       const user = `${profileAnswers ? `User profile answers: ${JSON.stringify(profileAnswers)}.` : prevSummary}`;
       const data = await fetchOpenAIChat(openaiKey, {
@@ -138,9 +157,18 @@ export default function App() {
       const cleaned = parsed.loot
         .map((x) => ({ threshold: Math.floor(Number(x.threshold) || 0), label: String(x.label || "Reward"), description: String(x.description || "") }))
         .filter((x) => Number.isFinite(x.threshold) && x.label);
-      const base = cleaned.filter((x) => x.threshold >= 10 && x.threshold <= 80).sort((a, b) => a.threshold - b.threshold).slice(0, 5);
-      const premium = cleaned.find((x) => x.threshold >= 100) || { threshold: 100, label: "Grand Reward" };
-      let finalList = [...base, premium].map((x) => ({ id: crypto.randomUUID(), threshold: x.threshold, label: x.label, description: ensureDescription(x.label, x.threshold, x.description), claimed: false }));
+      const base = cleaned
+        .filter((x) => x.threshold >= 10 && x.threshold <= 80)
+        .sort((a, b) => a.threshold - b.threshold)
+        .slice(0, 8);
+      const premiumList = cleaned
+        .filter((x) => x.threshold >= 100)
+        .sort((a, b) => a.threshold - b.threshold)
+        .slice(0, 2);
+      const ensuredPremium = premiumList.length === 2
+        ? premiumList
+        : [...premiumList, ...Array.from({ length: 2 - premiumList.length }).map((_, i) => ({ threshold: 100 + i * 20, label: i === 0 ? "Grand Reward" : "Epic Reward", description: "" }))];
+      let finalList = [...base, ...ensuredPremium].map((x) => ({ id: crypto.randomUUID(), threshold: x.threshold, label: x.label, description: ensureDescription(x.label, x.threshold, x.description), claimed: false }));
       if (isSameRewardSet(finalList, loot)) finalList = nudgeRewards(finalList);
       setLoot(finalList);
       setLootVersion((v) => v + 1);
@@ -158,8 +186,28 @@ export default function App() {
     return () => window.removeEventListener("click", onDocClick);
   }, []);
 
+  useEffect(() => {
+    const saved = localStorage.getItem("work-xp-spa:completedLog");
+    if (saved) {
+      try { setCompletedLog(JSON.parse(saved)); } catch {}
+    }
+  }, []);
+
+  useEffect(() => {
+    if (totalXP >= dailyGoal && dailyGoal > 0) {
+      if (!hasShownGoalCongrats) {
+        setShowGoalCongrats(true);
+        setHasShownGoalCongrats(true);
+      }
+      if (autoCarryStreak && !streakIncrementedToday) {
+        setStreak((s) => s + 1);
+        setStreakIncrementedToday(true);
+      }
+    }
+  }, [totalXP, dailyGoal, hasShownGoalCongrats, autoCarryStreak, streakIncrementedToday]);
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-6 flex items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100 p-4 md:p-6 flex items-center justify-center">
       <div className="w-full max-w-7xl">
         <header className="mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
           <Swords className="w-6 h-6 md:w-7 md:h-7 text-indigo-400" />
@@ -174,29 +222,48 @@ export default function App() {
           </button>
         </header>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-4 md:mb-6">
-          <Card>
-            <div className="flex items-center gap-3">
-              <Trophy className="w-5 h-5" />
-              <div className="text-sm opacity-80">Lifetime XP</div>
-            </div>
-            <div className="mt-2 text-2xl font-semibold">{lifetimeXP} XP</div>
-          </Card>
-          <Card>
-            <div className="flex items-center gap-3">
-              <Target className="w-5 h-5" />
-              <div className="text-sm opacity-80">Daily XP</div>
-            </div>
-            <div className="mt-2 text-2xl font-semibold">{totalXP} XP</div>
-          </Card>
-          <Card>
-            <div className="flex items-center gap-3">
-              <Flame className="w-5 h-5" />
-              <div className="text-sm opacity-80">Streak</div>
-            </div>
-            <div className="mt-2 text-2xl font-semibold">{streak} days</div>
-          </Card>
-        </div>
+        <motion.div
+          layout
+          className={`grid grid-cols-1 sm:grid-cols-2 ${autoCarryStreak ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-3 md:gap-4 mb-4 md:mb-6`}
+        >
+          <motion.div layout>
+            <Card>
+              <div className="flex items-center gap-3">
+                <Trophy className="w-5 h-5" />
+                <div className="text-sm opacity-80">Lifetime XP</div>
+              </div>
+              <div className="mt-2 text-2xl font-semibold">{lifetimeXP} XP</div>
+            </Card>
+          </motion.div>
+          <motion.div layout>
+            <Card>
+              <div className="flex items-center gap-3">
+                <Target className="w-5 h-5" />
+                <div className="text-sm opacity-80">Daily XP</div>
+              </div>
+              <div className="mt-2 text-2xl font-semibold">{totalXP} XP</div>
+            </Card>
+          </motion.div>
+          <AnimatePresence initial={false}>
+            {autoCarryStreak && (
+              <motion.div
+                layout
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Card>
+                  <div className="flex items-center gap-3">
+                    <Flame className="w-5 h-5" />
+                    <div className="text-sm opacity-80">Streak</div>
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold">{streak} days</div>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
 
         <div className="mb-6">
           <div className="flex justify-between items-end mb-2">
@@ -213,11 +280,13 @@ export default function App() {
 
         <div className="grid grid-cols-1 gap-4 items-start mb-6">
           <div className="relative bg-slate-900/60 rounded-2xl shadow p-3 md:p-4">
+            { tasks.length > 0 && (
             <div className="hidden md:grid grid-cols-12 gap-3 px-2 py-2 text-xs uppercase tracking-wide text-slate-400">
               <div className="md:col-span-7">Task</div>
               <div className="text-center md:col-span-3">XP</div>
               <div className="text-right md:col-span-2">Actions</div>
             </div>
+            )}
             <div>
               {tasks.length === 0 && (
                 <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-6 text-center text-slate-300">
@@ -236,6 +305,9 @@ export default function App() {
                     <div className="flex items-center gap-2 rounded-xl border border-slate-800/60 bg-slate-900/50 p-2 md:hidden">
                       <input className="flex-1 bg-transparent outline-none rounded focus:ring focus:ring-indigo-500/30 px-2 py-1 text-sm" value={t.name} onChange={(e) => updateTask(t.id, { name: e.target.value })} />
                       <input type="number" className="w-16 bg-slate-950 rounded px-2 py-1 text-center text-xs" value={t.xp} onChange={(e) => updateTask(t.id, { xp: clamp(parseInt(e.target.value || 0, 10), 0, 100000) })} />
+                      <button className="inline-flex items-center justify-center text-slate-400 hover:text-indigo-400" onClick={() => setTimerTask(t)} aria-label="Start timer" title="Start timer">
+                        <Clock className="w-5 h-5" />
+                      </button>
                       <button className="inline-flex items-center justify-center text-slate-400 hover:text-emerald-400" onClick={() => completeTask(t.id)} aria-label="Complete task" title="Complete task">
                         <Circle className="w-5 h-5" />
                       </button>
@@ -249,6 +321,9 @@ export default function App() {
                         <input type="number" className="w-full bg-slate-950 rounded px-2 py-1 text-center" value={t.xp} onChange={(e) => updateTask(t.id, { xp: clamp(parseInt(e.target.value || 0, 10), 0, 100000) })} />
                       </div>
                       <div className="flex justify-end items-center gap-2 md:col-span-2">
+                        <button className="inline-flex items-center justify-center text-slate-400 hover:text-indigo-400" onClick={() => setTimerTask(t)} aria-label="Start timer" title="Start timer">
+                          <Clock className="w-5 h-5" />
+                        </button>
                         <button className="inline-flex items-center justify-center text-slate-400 hover:text-emerald-400" onClick={() => completeTask(t.id)} aria-label="Complete task" title="Complete task">
                           <Circle className="w-5 h-5" />
                         </button>
@@ -283,7 +358,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <Package className="w-5 h-5"/>
                 <h2 className="text-base md:text-lg font-semibold">Loot Drops</h2>
-                <span className="ml-2 text-xs text-slate-400">Points available: <span className="text-slate-200 font-semibold">{availablePoints}</span></span>
+                <span className="block ml-2 text-xs text-slate-400">Points <span className="hidden md:inline">available</span>: <span className="text-slate-200 font-semibold">{availablePoints}</span></span>
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => setShowLootEditor(true)} title="Edit loot drops" aria-label="Edit loot drops" className="inline-flex items-center justify-center px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white">
@@ -300,7 +375,7 @@ export default function App() {
             {lootError && <div className="mb-2 text-xs text-red-400">{lootError}</div>}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-2.5 md:gap-3">
               {lootRefreshing && (
-                Array.from({ length: 6 }).map((_, i) => (
+                Array.from({ length: 10 }).map((_, i) => (
                   <motion.div key={`skeleton-${i}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: i * 0.05 }} className="relative rounded-xl p-3 border border-slate-800 bg-slate-900/60 overflow-hidden">
                     <motion.div className="pointer-events-none absolute inset-0" initial={{ x: "-100%" }} animate={{ x: ["-100%", "100%"] }} transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.03 }} style={{ background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(148,163,184,0.08) 50%, rgba(255,255,255,0) 100%)" }} />
                     <div className="h-3 w-16 bg-slate-800 rounded mb-2" />
@@ -341,10 +416,10 @@ export default function App() {
                           setCelebratingLoot(l);
                           setOpenLootInfoId(null);
                         }}
-                        className={`relative text-left rounded-xl p-3 border transition-shadow ${l.claimed ? 'border-emerald-400/40 bg-emerald-500/10 opacity-70 cursor-not-allowed' : canAfford ? 'border-emerald-400/50 bg-emerald-500/10 hover:shadow-[0_0_0_3px_rgba(16,185,129,0.25)] cursor-pointer' : (availablePoints > 0 ? 'border-yellow-400/40 bg-yellow-500/5 hover:bg-yellow-500/10 cursor-pointer' : 'border-slate-800 cursor-not-allowed opacity-80')}`}>
+                        className={`relative text-left rounded-xl p-3 border transition-shadow ${l.claimed ? 'border-indigo-400/40 bg-indigo-900/30 opacity-75 cursor-not-allowed' : canAfford ? 'border-emerald-400/50 bg-emerald-500/10 hover:shadow-[0_0_0_3px_rgba(16,185,129,0.25)] cursor-pointer' : (availablePoints > 0 ? 'border-yellow-400/40 bg-yellow-500/5 hover:bg-yellow-500/10 cursor-pointer' : 'border-slate-800 cursor-not-allowed opacity-80')}`}>
                         <div className="text-sm opacity-80">{l.threshold} pts</div>
                         <div className="text-base font-medium">{l.label}</div>
-                        {l.claimed ? (<div className="mt-2 text-xs text-emerald-300">Claimed</div>) : canAfford ? (<div className="mt-2 text-xs text-emerald-300">Click to claim</div>) : availablePoints > 0 ? (<div className="mt-2 text-xs text-yellow-300">Need {l.threshold - availablePoints} more points</div>) : (<div className="mt-2 text-xs text-slate-400">No points available</div>)}
+                        {l.claimed ? (<div className="mt-2 text-xs text-indigo-300">Claimed</div>) : canAfford ? (<div className="mt-2 text-xs text-emerald-300">Click to claim</div>) : availablePoints > 0 ? (<div className="mt-2 text-xs text-yellow-300">Need {l.threshold - availablePoints} more points</div>) : (<div className="mt-2 text-xs text-slate-400">No points available</div>)}
                         <div className="mt-1 text-[10px] text-slate-400">Est: {estimateDurationLabel(l.threshold)}</div>
                         <span className="absolute bottom-2 right-2 inline-flex pointer-events-auto">
                           <button type="button" className="inline-flex items-center justify-center" aria-label="More info" aria-expanded={openLootInfoId === l.id} onClick={(e) => { e.stopPropagation(); setOpenLootInfoId((cur) => (cur === l.id ? null : l.id)); }}>
@@ -386,6 +461,26 @@ export default function App() {
 
         <AnimatePresence>
           {celebratingLoot && (<CelebrationModal loot={celebratingLoot} onClose={() => setCelebratingLoot(null)} />)}
+          {timerTask && (
+            <TaskTimerModal
+              task={timerTask}
+              maxMinutes={Math.max(5, Math.min(120, (parseInt(timerTask.xp, 10) || 0) * 2))}
+              onClose={() => setTimerTask(null)}
+              onComplete={({ taskId, name, xp, durationMs }) => {
+                setTimerTask(null);
+                setCompletedLog((log) => [...log, { id: crypto.randomUUID(), name, xp, durationMs, completedAt: Date.now() }]);
+                setLifetimeXP((v) => v + (Number(xp) || 0));
+                setDailyEarnedXP((v) => v + (Number(xp) || 0));
+                setTasks((ts) => ts.filter((t) => t.id !== taskId));
+              }}
+            />
+          )}
+          {showGoalCongrats && (
+            <GoalCongratsModal
+              tasks={completedLog}
+              onClose={() => { setShowGoalCongrats(false); setHasShownGoalCongrats(true); }}
+            />
+          )}
           {showGenerator && (
             <GeneratorModal
               onClose={() => setShowGenerator(false)}
@@ -409,33 +504,14 @@ export default function App() {
               onClose={() => setShowProfileWizard(false)}
               onComplete={async (answers) => {
                 setShowProfileWizard(false);
-                if (!openaiKey) return;
-                setLootRefreshing(true);
-                setLootError("");
-                try {
-                  const system = "You tailor break reward ideas to a user's preferences. Output strictly JSON: {\\\"loot\\\":[{\\\"threshold\\\":number,\\\"label\\\":string,\\\"description\\\":string}]} with 5 base items between 10 and 80 points (ascending), PLUS 1 premium item at least 100 points. Each description must be a helpful, specific paragraph of at least 50 characters describing how to take that break within the day, including mindful and time-bound guidance aligned to the point cost.";
-                  const user = `User answers: ${JSON.stringify(answers)}. Suggest six rewards.`;
-                  const data = await fetchOpenAIChat(openaiKey, { model: "gpt-4o-mini", messages: [{ role: "system", content: system }, { role: "user", content: user }], temperature: 0.4, response_format: { type: "json_object" } });
-                  const content = data.choices?.[0]?.message?.content || "";
-                  const parsed = JSON.parse(content);
-                  if (!parsed || !Array.isArray(parsed.loot)) throw new Error("Invalid AI response");
-                  const cleaned = parsed.loot
-                    .map((x) => ({ threshold: Math.floor(Number(x.threshold) || 0), label: String(x.label || "Reward"), description: String(x.description || "") }))
-                    .filter((x) => Number.isFinite(x.threshold) && x.label);
-                  const base = cleaned.filter((x) => x.threshold >= 10 && x.threshold <= 80).sort((a, b) => a.threshold - b.threshold).slice(0, 5);
-                  const premium = cleaned.find((x) => x.threshold >= 100) || { threshold: 100, label: "Grand Reward" };
-                  const finalList = [...base, premium].map((x) => ({ id: crypto.randomUUID(), threshold: x.threshold, label: x.label, description: ensureDescription(x.label, x.threshold, x.description), claimed: false }));
-                  setLoot(finalList);
-                  setProfileAnswers(answers);
-                } catch (e) {
-                  setLootError(e.message || String(e));
-                } finally { setLootRefreshing(false); }
+                setProfileAnswers(answers);
+                refreshLootFromAI();
               }}
             />
           )}
         </AnimatePresence>
 
-        <footer className="mt-8 text-center text-xs text-slate-500">Built for momentum, not perfection. Reset tomorrow and keep the streak alive.</footer>
+        <footer className="mt-8 mb-2 text-center text-xs text-slate-500">Built for momentum, not perfection. Reset tomorrow and keep the streak alive.</footer>
       </div>
     </div>
   );
