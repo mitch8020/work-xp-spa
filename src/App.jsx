@@ -467,7 +467,13 @@ export default function App() {
                 <button onClick={() => setShowLootEditor(true)} title="Edit loot drops" aria-label="Edit loot drops" className="inline-flex items-center justify-center px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white">
                   <Edit3 className="w-4 h-4" />
                 </button>
-                <button onClick={() => setShowProfileWizard(true)} title="Profile wizard" aria-label="Profile wizard" className="inline-flex items-center justify-center px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white">
+                <button
+                  onClick={() => { if (openaiKey) setShowProfileWizard(true); }}
+                  disabled={!openaiKey}
+                  title={openaiKey ? "Profile wizard" : "Add your OpenAI key in Settings"}
+                  aria-label="Profile wizard"
+                  className={`inline-flex items-center justify-center px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl ${openaiKey ? "bg-slate-800 hover:bg-slate-700 text-white" : "bg-slate-800/50 text-slate-400 cursor-not-allowed"}`}
+                >
                   <Sparkles className="w-4 h-4" />
                 </button>
                 <button onClick={refreshLootFromAI} disabled={lootRefreshing || !openaiKey} title={openaiKey ? "Refresh rewards with AI" : "Add your OpenAI key in Settings"} className={`inline-flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm ${openaiKey ? "bg-slate-800 hover:bg-slate-700 text-white" : "bg-slate-800/50 text-slate-400 cursor-not-allowed"}`}>
