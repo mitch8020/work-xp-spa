@@ -6,5 +6,7 @@ export { default as CelebrationModal } from "./CelebrationModal.jsx";
 export { default as ProfileWizard } from "./ProfileWizard.jsx";
 export { default as TaskTimerModal } from "./TaskTimerModal.jsx";
 export { default as GoalCongratsModal } from "./GoalCongratsModal.jsx";
+export { default as DefaultTasksEditorModal } from "./DefaultTasksEditorModal.jsx";
+export { default as DefaultLootTemplateEditorModal } from "./DefaultLootTemplateEditorModal.jsx";
 
 

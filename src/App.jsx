@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Minus, RotateCcw, Swords, Settings, RefreshCcw, Info, Trash2, Circle, ListChecks, Eye, EyeOff, X, Loader2, Sparkles, Edit3, Flame, Package, Trophy, Target, Clock } from "lucide-react";
-import { Card, SettingsModal, LootEditorModal, GeneratorModal, CelebrationModal, ProfileWizard, TaskTimerModal, GoalCongratsModal } from "./components/index.js";
+import { Card, SettingsModal, LootEditorModal, GeneratorModal, CelebrationModal, ProfileWizard, TaskTimerModal, GoalCongratsModal, DefaultTasksEditorModal, DefaultLootTemplateEditorModal } from "./components/index.js";
 import {
   STORAGE_KEY,
   todayISO,
@@ -47,6 +47,12 @@ export default function App() {
   const [showGoalCongrats, setShowGoalCongrats] = useState(false);
   const [hasShownGoalCongrats, setHasShownGoalCongrats] = useState(false);
   const [streakIncrementedToday, setStreakIncrementedToday] = useState(false);
+  const [estimatingTaskId, setEstimatingTaskId] = useState(null);
+  const [defaultTasksOverride, setDefaultTasksOverride] = useState(null);
+  const [defaultTasksIncludeStreak, setDefaultTasksIncludeStreak] = useState(true);
+  const [defaultLootOverride, setDefaultLootOverride] = useState(null);
+  const [showDefaultTasksEditor, setShowDefaultTasksEditor] = useState(false);
+  const [showDefaultLootEditor, setShowDefaultLootEditor] = useState(false);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -65,13 +71,16 @@ export default function App() {
       if (parsed.pointsSpent != null) setPointsSpent(parsed.pointsSpent);
       if (parsed.profileAnswers) setProfileAnswers(parsed.profileAnswers);
       if (parsed.dailyEarnedXP != null) setDailyEarnedXP(parsed.dailyEarnedXP);
+      if (parsed.defaultTasksOverride) setDefaultTasksOverride(parsed.defaultTasksOverride);
+      if (parsed.defaultTasksIncludeStreak != null) setDefaultTasksIncludeStreak(Boolean(parsed.defaultTasksIncludeStreak));
+      if (parsed.defaultLootOverride) setDefaultLootOverride(parsed.defaultLootOverride);
     } catch (e) {
       console.warn("Failed to load saved state", e);
     }
   }, []);
 
   useEffect(() => {
-    const state = { tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers, streakIncrementedToday };
+    const state = { tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers, streakIncrementedToday, defaultTasksOverride, defaultLootOverride, defaultTasksIncludeStreak };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     localStorage.setItem("work-xp-spa:completedLog", JSON.stringify(completedLog));
   }, [tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers, streakIncrementedToday, completedLog]);
@@ -105,16 +114,76 @@ export default function App() {
     setCompletedLog((log) => [...log, { id: crypto.randomUUID(), name: task.name, xp: task.xp, durationMs: 0, completedAt: Date.now() }]);
     setTasks((ts) => ts.filter((t) => t.id !== id));
   };
+
+  const buildDefaultTasksForStreakWithOverride = (currentStreakDays) => {
+    if (Array.isArray(defaultTasksOverride) && defaultTasksOverride.length) {
+      const nextTarget = Math.max(1, (parseInt(currentStreakDays, 10) || 0) + 1);
+      const base = defaultTasksOverride;
+      const finalList = defaultTasksIncludeStreak ? [...base, { name: `Streak bonus (${nextTarget} days in a row)`, xp: 10 }] : base;
+      return finalList.map((t) => ({ id: crypto.randomUUID(), completed: false, ...t }));
+    }
+    return buildDefaultTasksForStreak(currentStreakDays);
+  };
+
+  const getDefaultLootPool = () => {
+    if (Array.isArray(defaultLootOverride) && defaultLootOverride.length) {
+      const pool = defaultLootOverride
+        .map((x) => ({
+          id: crypto.randomUUID(),
+          threshold: Math.floor(Number(x.threshold) || 0),
+          label: String(x.label || "Reward"),
+          description: ensureDescription(String(x.label || "Reward"), Math.floor(Number(x.threshold) || 0), ""),
+          claimed: false,
+        }))
+        .sort((a, b) => a.threshold - b.threshold);
+      return pool;
+    }
+    return generateFallbackLoot();
+  };
   const updateTask = (id, patch) => setTasks(ts => ts.map(t => t.id === id ? { ...t, ...patch } : t));
   const deleteTask = (id) => setTasks(ts => ts.filter(t => t.id !== id));
-  const addTask = () => setTasks(ts => ([...ts, { id: crypto.randomUUID(), name: "New task", xp: 5, completed: false }]));
+  const addTask = () => setTasks(ts => ([...ts, { id: crypto.randomUUID(), name: "New task", xp: 5, completed: false, isNew: true }]))
+  ;
+
+  const estimateTaskXP = async (taskId) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    if (!openaiKey) { alert("Add your OpenAI key in Settings"); return; }
+    if (!task.isNew) return;
+    try {
+      setEstimatingTaskId(taskId);
+      const system = "Estimate how long a single task would take for a focused individual contributor. Choose ONE number from {5,10,15,...,150} representing minutes. Respond strictly as JSON: {\"minutes\": number}.";
+      const user = `Task: ${task.name}`;
+      const data = await fetchOpenAIChat(openaiKey, {
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+      });
+      const content = data.choices?.[0]?.message?.content || "";
+      const parsed = JSON.parse(content);
+      let minutes = Math.max(5, Math.min(150, Math.floor(Number(parsed?.minutes) || 0)));
+      // snap to nearest 5
+      minutes = Math.round(minutes / 5) * 5;
+      const xp = Math.max(1, Math.round(minutes / 2));
+      setTasks((ts) => ts.map((t) => t.id === taskId ? { ...t, xp, isNew: false } : t));
+    } catch (e) {
+      console.error(e);
+      alert("Failed to estimate XP. Please try again.");
+    } finally {
+      setEstimatingTaskId(null);
+    }
+  };
 
   const resetDay = () => {
     const metGoal = totalXP >= dailyGoal && dailyGoal > 0;
     const confirmText = metGoal ? "Reset day and increment streak? (You met your goal!)" : "Reset day? (Today's progress will be cleared)";
     if (!confirm(confirmText)) return;
-    // Restore default task list as undone, streak bonus reflects next streak day
-    setTasks(()=> ([...tasks, ...buildDefaultTasksForStreak(metGoal ? streak + 1 : streak)]));
+    // Restore default task list as undone, streak bonus reflects next streak day (prepend defaults)
+    setTasks((prev)=> ([...buildDefaultTasksForStreakWithOverride(metGoal ? streak + 1 : streak), ...prev]));
     setDailyEarnedXP(0);
     setCompletedLog([]);
     setLastReset(todayISO());
@@ -126,7 +195,7 @@ export default function App() {
     // Refresh loot list on reset: replace only claimed boxes with similar default loot
     setOpenLootInfoId(null);
     setLootVersion((v) => v + 1);
-    const fallback = generateFallbackLoot();
+    const fallback = getDefaultLootPool();
     setLoot((prevLoot) => {
       const pool = [...fallback];
       const takeSimilar = (threshold) => {
@@ -195,7 +264,7 @@ export default function App() {
     } catch (e) {
       console.error("Loot refresh failed:", e);
       setLootError(e.message || String(e));
-      const fallback = generateFallbackLoot();
+      const fallback = getDefaultLootPool();
       setLoot(fallback);
     } finally { setLootRefreshing(false); }
   }
@@ -323,7 +392,14 @@ export default function App() {
                 {tasks.map((t) => (
                   <motion.div key={t.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98, y: -6 }} transition={{ duration: 0.18 }} className="mb-2 md:mb-0">
                     <div className="flex items-center gap-2 rounded-xl border border-slate-800/60 bg-slate-900/50 p-2 md:hidden">
-                      <input className="flex-1 bg-transparent outline-none rounded focus:ring focus:ring-indigo-500/30 px-2 py-1 text-sm" value={t.name} onChange={(e) => updateTask(t.id, { name: e.target.value })} />
+                      <div className="relative flex-1">
+                        <input className="w-full bg-transparent outline-none rounded focus:ring focus:ring-indigo-500/30 px-2 py-1 pr-16 text-sm" value={t.name} onChange={(e) => updateTask(t.id, { name: e.target.value })} />
+                        {t.isNew && (
+                          <button type="button" className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => estimateTaskXP(t.id)} disabled={estimatingTaskId === t.id} title="Estimate XP via AI">
+                            {estimatingTaskId === t.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Est. XP"}
+                          </button>
+                        )}
+                      </div>
                       <input type="number" className="w-16 bg-slate-950 rounded px-2 py-1 text-center text-xs" value={t.xp} onChange={(e) => updateTask(t.id, { xp: clamp(parseInt(e.target.value || 0, 10), 0, 100000) })} />
                       <button className="inline-flex items-center justify-center text-slate-400 hover:text-indigo-400" onClick={() => setTimerTask(t)} aria-label="Start timer" title="Start timer">
                         <Clock className="w-5 h-5" />
@@ -336,7 +412,14 @@ export default function App() {
                       </button>
                     </div>
                     <div className="hidden md:grid md:grid-cols-12 md:gap-3 md:items-center md:px-2 md:py-3">
-                      <input className="w-full bg-transparent outline-none rounded focus:ring focus:ring-indigo-500/30 px-2 py-1 md:col-span-7" value={t.name} onChange={(e) => updateTask(t.id, { name: e.target.value })} />
+                      <div className="relative md:col-span-7">
+                        <input className="w-full bg-transparent outline-none rounded focus:ring focus:ring-indigo-500/30 px-2 py-1 pr-20" value={t.name} onChange={(e) => updateTask(t.id, { name: e.target.value })} />
+                        {t.isNew && (
+                          <button type="button" className="absolute right-1 top-1/2 -translate-y-1/2 text-xs px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => estimateTaskXP(t.id)} disabled={estimatingTaskId === t.id} title="Estimate XP via AI">
+                            {estimatingTaskId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Est. XP"}
+                          </button>
+                        )}
+                      </div>
                       <div className="md:col-span-3">
                         <input type="number" className="w-full bg-slate-950 rounded px-2 py-1 text-center" value={t.xp} onChange={(e) => updateTask(t.id, { xp: clamp(parseInt(e.target.value || 0, 10), 0, 100000) })} />
                       </div>
@@ -473,6 +556,8 @@ export default function App() {
               setOpenaiKey={setOpenaiKey}
               defaultAvailableMinutes={defaultAvailableMinutes}
               setDefaultAvailableMinutes={setDefaultAvailableMinutes}
+              onEditDefaultTasks={() => { setShowSettings(false); setShowDefaultTasksEditor(true); }}
+              onEditDefaultLoot={() => { setShowSettings(false); setShowDefaultLootEditor(true); }}
               onStartProfile={() => { setShowSettings(false); setShowProfileWizard(true); }}
               onClose={() => setShowSettings(false)}
             />
@@ -519,6 +604,21 @@ export default function App() {
             />
           )}
           {showLootEditor && (<LootEditorModal loot={loot} setLoot={setLoot} onClose={() => setShowLootEditor(false)} />)}
+          {showDefaultTasksEditor && (
+            <DefaultTasksEditorModal
+              initialTasks={defaultTasksOverride}
+              initialIncludeStreak={defaultTasksIncludeStreak}
+              onSave={({ items, includeStreak }) => { setDefaultTasksOverride(items); setDefaultTasksIncludeStreak(includeStreak); setShowDefaultTasksEditor(false); setShowSettings(true); }}
+              onClose={() => { setShowDefaultTasksEditor(false); setShowSettings(true); }}
+            />
+          )}
+          {showDefaultLootEditor && (
+            <DefaultLootTemplateEditorModal
+              initialTemplates={defaultLootOverride}
+              onSave={(items) => { setDefaultLootOverride(items); setShowDefaultLootEditor(false); setShowSettings(true); }}
+              onClose={() => { setShowDefaultLootEditor(false); setShowSettings(true); }}
+            />
+          )}
           {showProfileWizard && (
             <ProfileWizard
               onClose={() => setShowProfileWizard(false)}
