@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Minus, RotateCcw, Swords, Settings, RefreshCcw, Info, Trash2, Circle, ListChecks, Eye, EyeOff, X, Loader2, Sparkles, Edit3, Flame, Package, Trophy, Target, Clock } from "lucide-react";
-import { Card, SettingsModal, LootEditorModal, GeneratorModal, CelebrationModal, ProfileWizard, TaskTimerModal, GoalCongratsModal, DefaultTasksEditorModal, DefaultLootTemplateEditorModal } from "./components/index.js";
+import { Card, SettingsModal, LootEditorModal, GeneratorModal, CelebrationModal, ProfileWizard, TaskTimerModal, GoalCongratsModal, DefaultTasksEditorModal, DefaultLootTemplateEditorModal, DefaultMinutesModal } from "./components/index.js";
 import {
   STORAGE_KEY,
   todayISO,
@@ -52,6 +52,8 @@ export default function App() {
   const [defaultLootOverride, setDefaultLootOverride] = useState(null);
   const [showDefaultTasksEditor, setShowDefaultTasksEditor] = useState(false);
   const [showDefaultLootEditor, setShowDefaultLootEditor] = useState(false);
+  const [defaultAlarmEnabled, setDefaultAlarmEnabled] = useState(true);
+  const [showDefaultMinutesEditor, setShowDefaultMinutesEditor] = useState(false);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -72,13 +74,14 @@ export default function App() {
       if (parsed.dailyEarnedXP != null) setDailyEarnedXP(parsed.dailyEarnedXP);
       if (parsed.defaultTasksOverride) setDefaultTasksOverride(parsed.defaultTasksOverride);
       if (parsed.defaultLootOverride) setDefaultLootOverride(parsed.defaultLootOverride);
+      if (parsed.defaultAlarmEnabled != null) setDefaultAlarmEnabled(Boolean(parsed.defaultAlarmEnabled));
     } catch (e) {
       console.warn("Failed to load saved state", e);
     }
   }, []);
 
   useEffect(() => {
-    const state = { tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers, streakIncrementedToday, defaultTasksOverride, defaultLootOverride };
+    const state = { tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers, streakIncrementedToday, defaultTasksOverride, defaultLootOverride, defaultAlarmEnabled };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     localStorage.setItem("work-xp-spa:completedLog", JSON.stringify(completedLog));
   }, [tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers, streakIncrementedToday, completedLog]);
@@ -294,8 +297,16 @@ export default function App() {
   }, [totalXP, dailyGoal, hasShownGoalCongrats, autoCarryStreak, streakIncrementedToday]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100 p-4 md:p-6 flex items-center justify-center">
-      <div className="w-full max-w-7xl">
+    <div className="relative min-h-screen text-slate-100 p-4 md:p-6 flex items-center justify-center bg-[radial-gradient(120%_100%_at_50%_0%,_rgba(31,41,55,1)_0%,_rgba(2,6,23,1)_45%,_rgba(0,0,0,1)_100%)]">
+      {/* Decorative background blobs (full-viewport) */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        <div className="absolute -top-24 -left-24 h-80 w-80 md:h-[28rem] md:w-[28rem] rounded-full bg-fuchsia-500/25 blur-3xl" />
+        <div className="absolute -bottom-24 -right-24 h-72 w-72 md:h-[24rem] md:w-[24rem] rounded-full bg-indigo-500/25 blur-3xl" />
+        <div className="absolute top-1/3 -right-24 h-80 w-80 md:h-[28rem] md:w-[28rem] rounded-full bg-emerald-400/20 blur-3xl" />
+        <div className="absolute bottom-1/4 -left-24 h-80 w-80 md:h-[28rem] md:w-[28rem] rounded-full bg-sky-400/20 blur-3xl" />
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 h-80 w-80 md:h-[30rem] md:w-[30rem] rounded-full bg-purple-500/30 blur-3xl" />
+      </div>
+      <div className="relative z-10 w-full max-w-7xl">
         <header className="mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
           <Swords className="w-6 h-6 md:w-7 md:h-7 text-indigo-400" />
           <h1 className="text-xl md:text-3xl font-semibold flex-1">Work XP — Daily Grind</h1>
@@ -308,6 +319,8 @@ export default function App() {
             <span className="hidden md:inline">Settings</span>
           </button>
         </header>
+
+        
 
         <motion.div
           layout
@@ -465,7 +478,7 @@ export default function App() {
                 <button onClick={() => setShowLootEditor(true)} title="Edit loot drops" aria-label="Edit loot drops" className="inline-flex items-center justify-center px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white">
                   <Edit3 className="w-4 h-4" />
                 </button>
-                <button onClick={() => setShowProfileWizard(true)} title="Profile wizard" aria-label="Profile wizard" className="inline-flex items-center justify-center px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white">
+                <button onClick={() => setShowProfileWizard(true)} title="Profile wizard" aria-label="Profile wizard" className={`inline-flex items-center justify-center px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white ${openaiKey ? "bg-slate-800 hover:bg-slate-700 text-white" : "bg-slate-800/50 text-slate-400 cursor-not-allowed"}`}>
                   <Sparkles className="w-4 h-4" />
                 </button>
                 <button onClick={refreshLootFromAI} disabled={lootRefreshing || !openaiKey} title={openaiKey ? "Refresh rewards with AI" : "Add your OpenAI key in Settings"} className={`inline-flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm ${openaiKey ? "bg-slate-800 hover:bg-slate-700 text-white" : "bg-slate-800/50 text-slate-400 cursor-not-allowed"}`}>
@@ -554,8 +567,11 @@ export default function App() {
               setOpenaiKey={setOpenaiKey}
               defaultAvailableMinutes={defaultAvailableMinutes}
               setDefaultAvailableMinutes={setDefaultAvailableMinutes}
+              defaultAlarmEnabled={defaultAlarmEnabled}
+              setDefaultAlarmEnabled={setDefaultAlarmEnabled}
               onEditDefaultTasks={() => { setShowSettings(false); setShowDefaultTasksEditor(true); }}
               onEditDefaultLoot={() => { setShowSettings(false); setShowDefaultLootEditor(true); }}
+              onStartEditDefaultMinutes={() => { setShowSettings(false); setShowDefaultMinutesEditor(true); }}
               onStartProfile={() => { setShowSettings(false); setShowProfileWizard(true); }}
               onClose={() => setShowSettings(false)}
             />
@@ -563,7 +579,7 @@ export default function App() {
         </AnimatePresence>
 
         <AnimatePresence>
-          {celebratingLoot && (<CelebrationModal loot={celebratingLoot} onClose={() => setCelebratingLoot(null)} />)}
+          {celebratingLoot && (<CelebrationModal loot={celebratingLoot} defaultAlarmEnabled={defaultAlarmEnabled} onClose={() => setCelebratingLoot(null)} />)}
           {timerTask && (
             <TaskTimerModal
               task={timerTask}
@@ -576,6 +592,7 @@ export default function App() {
                 setDailyEarnedXP((v) => v + (Number(xp) || 0));
                 setTasks((ts) => ts.filter((t) => t.id !== taskId));
               }}
+              defaultAlarmEnabled={defaultAlarmEnabled}
             />
           )}
           {showGoalCongrats && (
@@ -614,6 +631,13 @@ export default function App() {
               initialTemplates={defaultLootOverride}
               onSave={(items) => { setDefaultLootOverride(items); setShowDefaultLootEditor(false); setShowSettings(true); }}
               onClose={() => { setShowDefaultLootEditor(false); setShowSettings(true); }}
+            />
+          )}
+          {showDefaultMinutesEditor && (
+            <DefaultMinutesModal
+              minutes={defaultAvailableMinutes}
+              onSave={(val) => { setDefaultAvailableMinutes(val); setShowDefaultMinutesEditor(false); setShowSettings(true); }}
+              onClose={() => { setShowDefaultMinutesEditor(false); setShowSettings(true); }}
             />
           )}
           {showProfileWizard && (

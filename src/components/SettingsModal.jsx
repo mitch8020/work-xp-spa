@@ -13,8 +13,11 @@ export default function SettingsModal({
   defaultAvailableMinutes,
   setDefaultAvailableMinutes,
   onStartProfile,
+  defaultAlarmEnabled,
+  setDefaultAlarmEnabled,
   onEditDefaultTasks,
   onEditDefaultLoot,
+  onStartEditDefaultMinutes,
   onClose,
 }) {
   const [showKey, setShowKey] = useState(false);
@@ -68,34 +71,11 @@ export default function SettingsModal({
             />
           </div>
           <div>
-            <div className="text-sm mb-1 opacity-80">Default available minutes per day</div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
-                onClick={() => setDefaultAvailableMinutes((v) => Math.max(30, (parseInt(v, 10) || 0) - 30))}
-                disabled={defaultAvailableMinutes <= 30}
-                title="-30 min"
-              >
-                −
-              </button>
-              <input
-                type="number"
-                className="w-24 bg-slate-950 rounded px-2 py-1 text-center"
-                value={defaultAvailableMinutes}
-                onChange={(e) => setDefaultAvailableMinutes(Math.max(30, Math.min(720, parseInt(e.target.value || 0, 10))))}
-              />
-              <button
-                type="button"
-                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
-                onClick={() => setDefaultAvailableMinutes((v) => Math.min(720, (parseInt(v, 10) || 0) + 30))}
-                disabled={defaultAvailableMinutes >= 720}
-                title="+30 min"
-              >
-                +
-              </button>
-            </div>
-            <div className="text-[10px] mt-1 text-slate-500">Step: 30 min (30–720)</div>
+            <div className="text-sm mb-1 opacity-80">Alarm enabled by default</div>
+            <label className="inline-flex items-center gap-2">
+              <input type="checkbox" checked={defaultAlarmEnabled} onChange={(e) => setDefaultAlarmEnabled(e.target.checked)} />
+              <span className="text-sm">Enabled</span>
+            </label>
           </div>
           <div>
             <div className="text-sm mb-1 opacity-80">OpenAI API key (stored locally)</div>
@@ -120,15 +100,37 @@ export default function SettingsModal({
           </div>
         </div>
 
-        <div className="mt-5 border-t border-slate-800 pt-4">
-          <div className="mb-4">
-            <div className="text-sm font-medium text-slate-200 mb-2">Defaults</div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button type="button" className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm" onClick={onEditDefaultTasks}>Edit default tasks</button>
-              <button type="button" className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm" onClick={onEditDefaultLoot}>Edit default loot drops</button>
+        <div className="mt-5">
+          <div className="mb-4 border-t border-slate-800 pt-4">
+            <div className="mb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-slate-200">Default available minutes</div>
+                  <div className="text-xs text-slate-400">Current: {defaultAvailableMinutes} minutes</div>
+                </div>
+                <button type="button" className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm" onClick={() => onStartEditDefaultMinutes?.()}>Edit</button>
+              </div>
+            </div>
+            <div className="mb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-slate-200">Default tasks</div>
+                  <div className="text-xs text-slate-400">Customize your starter task list</div>
+                </div>
+                <button type="button" className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm" onClick={onEditDefaultTasks}>Edit</button>
+              </div>
+            </div>
+            <div className="mb-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-slate-200">Default loot drops</div>
+                  <div className="text-xs text-slate-400">Customize your default reward pool</div>
+                </div>
+                <button type="button" className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm" onClick={onEditDefaultLoot}>Edit</button>
+              </div>
             </div>
           </div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between border-t border-slate-800 pt-4">
             <div>
               <div className="text-sm font-medium text-slate-200">Danger zone</div>
               <div className="text-xs text-slate-400">Permanently delete all app data saved in this browser.</div>

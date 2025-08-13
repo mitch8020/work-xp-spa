@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { X, Timer as TimerIcon, Check, BellRing, BellOff } from "lucide-react";
 import { formatDurationMs } from "../helpers.jsx";
 
-export default function TaskTimerModal({ task, maxMinutes, onComplete, onClose }) {
+export default function TaskTimerModal({ task, maxMinutes, onComplete, onClose, defaultAlarmEnabled = true }) {
   const [startMs] = useState(() => Date.now());
   const [elapsedMs, setElapsedMs] = useState(0);
   const intervalRef = useRef(null);
@@ -12,6 +12,9 @@ export default function TaskTimerModal({ task, maxMinutes, onComplete, onClose }
   const oscRef = useRef(null);
   const pulseRef = useRef(null);
   const [alarmActive, setAlarmActive] = useState(false);
+  const [alarmEnabled, setAlarmEnabled] = useState(Boolean(defaultAlarmEnabled));
+  const originalTitleRef = useRef(document.title);
+  const originalFaviconRef = useRef(null);
 
   const maxMs = maxMinutes * 60 * 1000;
   const remainingMs = Math.max(0, maxMs - elapsedMs);
@@ -22,14 +25,36 @@ export default function TaskTimerModal({ task, maxMinutes, onComplete, onClose }
     return () => {
       clearInterval(intervalRef.current);
       stopAlarm();
+      restoreAttention();
     };
   }, [startMs]);
 
   useEffect(() => {
-    if (done && !alarmActive) {
+    if (done && !alarmActive && alarmEnabled) {
       startAlarm();
     }
-  }, [done]);
+  }, [done, alarmEnabled]);
+
+  function setAttention(active) {
+    try {
+      const link = document.querySelector("link[rel='icon']");
+      if (!originalFaviconRef.current && link) originalFaviconRef.current = link.getAttribute("href");
+      if (active) {
+        document.title = "⏰ Time's up — Work XP";
+        if (link) link.setAttribute("href", "/favicon-alert.svg");
+      } else {
+        restoreAttention();
+      }
+    } catch {}
+  }
+
+  function restoreAttention() {
+    try {
+      document.title = originalTitleRef.current || document.title;
+      const link = document.querySelector("link[rel='icon']");
+      if (link && originalFaviconRef.current) link.setAttribute("href", originalFaviconRef.current);
+    } catch {}
+  }
 
   function startAlarm() {
     try {
@@ -53,6 +78,7 @@ export default function TaskTimerModal({ task, maxMinutes, onComplete, onClose }
       oscRef.current = osc;
       pulseRef.current = pulse;
       setAlarmActive(true);
+      setAttention(true);
     } catch (e) {
       // ignore alarm start errors
     }
@@ -78,6 +104,7 @@ export default function TaskTimerModal({ task, maxMinutes, onComplete, onClose }
       }
     } finally {
       setAlarmActive(false);
+      setAttention(false);
     }
   }
 
@@ -96,15 +123,26 @@ export default function TaskTimerModal({ task, maxMinutes, onComplete, onClose }
         <div className="mt-2 text-center text-xs text-slate-400">Elapsed: {formatDurationMs(elapsedMs)}</div>
 
         <div className="mt-4 flex items-center justify-between gap-2">
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 text-sm disabled:opacity-60"
-            onClick={stopAlarm}
-            disabled={!alarmActive}
-            title="Stop alarm"
-          >
-            {alarmActive ? <BellOff className="w-4 h-4"/> : <BellRing className="w-4 h-4"/>}
-            {alarmActive ? 'Stop alarm' : 'Alarm off'}
-          </button>
+          {done ? (
+            <button
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 text-sm disabled:opacity-60"
+              onClick={stopAlarm}
+              disabled={!alarmActive}
+              title="Stop alarm"
+            >
+              {alarmActive ? <BellOff className="w-4 h-4"/> : <BellRing className="w-4 h-4"/>}
+              {alarmActive ? 'Alarm off' : 'Alarm off'}
+            </button>
+          ) : (
+            <button
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 text-sm"
+              onClick={() => setAlarmEnabled((v) => !v)}
+              title={alarmEnabled ? 'Disable alarm' : 'Enable alarm'}
+            >
+              {alarmEnabled ? <BellOff className="w-4 h-4"/> : <BellRing className="w-4 h-4"/>}
+              {alarmEnabled ? 'Disable alarm' : 'Enable alarm'}
+            </button>
+          )}
           <button
             className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 text-sm"
             onClick={() => {

@@ -8,5 +8,6 @@ export { default as TaskTimerModal } from "./TaskTimerModal.jsx";
 export { default as GoalCongratsModal } from "./GoalCongratsModal.jsx";
 export { default as DefaultTasksEditorModal } from "./DefaultTasksEditorModal.jsx";
 export { default as DefaultLootTemplateEditorModal } from "./DefaultLootTemplateEditorModal.jsx";
+export { default as DefaultMinutesModal } from "./DefaultMinutesModal.jsx";
 
 

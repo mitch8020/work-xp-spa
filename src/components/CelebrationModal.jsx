@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { X, Trophy, BellRing, BellOff } from "lucide-react";
 import { formatDurationMs, lootMinutesForThreshold } from "../helpers.jsx";
 
-export default function CelebrationModal({ loot, onClose }) {
+export default function CelebrationModal({ loot, onClose, defaultAlarmEnabled = true }) {
   const pieces = useMemo(() => {
     const colors = ["#34d399", "#60a5fa", "#fbbf24", "#f472b6", "#a78bfa"];
     const result = [];
@@ -30,6 +30,7 @@ export default function CelebrationModal({ loot, onClose }) {
   const oscRef = useRef(null);
   const pulseRef = useRef(null);
   const [alarmActive, setAlarmActive] = useState(false);
+  const [alarmEnabled, setAlarmEnabled] = useState(Boolean(defaultAlarmEnabled));
   const maxMinutes = loot ? lootMinutesForThreshold(loot.threshold) : 20;
   const maxMs = maxMinutes * 60 * 1000;
   const remainingMs = Math.max(0, maxMs - elapsedMs);
@@ -44,8 +45,8 @@ export default function CelebrationModal({ loot, onClose }) {
   }, [startMs]);
 
   useEffect(() => {
-    if (done && !alarmActive) startAlarm();
-  }, [done]);
+    if (done && !alarmActive && alarmEnabled) startAlarm();
+  }, [done, alarmEnabled]);
 
   function startAlarm() {
     try {
@@ -104,10 +105,17 @@ export default function CelebrationModal({ loot, onClose }) {
           <div className={`text-3xl font-mono ${done ? 'text-red-300' : 'text-emerald-300'}`}>{formatDurationMs(remainingMs)}</div>
           <div className="mt-1 text-[11px] text-slate-400">Elapsed: {formatDurationMs(elapsedMs)} • Target: {maxMinutes} min</div>
           <div className="mt-3 flex items-center justify-center gap-2">
-            <button className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 text-xs disabled:opacity-60" onClick={stopAlarm} disabled={!alarmActive}>
-              {alarmActive ? <BellOff className="w-4 h-4"/> : <BellRing className="w-4 h-4"/>}
-              {alarmActive ? 'Stop alarm' : 'Alarm off'}
-            </button>
+            {done ? (
+              <button className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 text-xs disabled:opacity-60" onClick={stopAlarm} disabled={!alarmActive}>
+                {alarmActive ? <BellOff className="w-4 h-4"/> : <BellRing className="w-4 h-4"/>}
+                {alarmActive ? 'Alarm off' : 'Alarm off'}
+              </button>
+            ) : (
+              <button className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 text-xs" onClick={() => setAlarmEnabled((v) => !v)}>
+                {alarmEnabled ? <BellOff className="w-4 h-4"/> : <BellRing className="w-4 h-4"/>}
+                {alarmEnabled ? 'Disable alarm' : 'Enable alarm'}
+              </button>
+            )}
           </div>
         </div>
         <button className="mt-5 inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500" onClick={() => { stopAlarm(); onClose(); }}>Awesome!</button>
