@@ -114,7 +114,7 @@ export default function App() {
     const confirmText = metGoal ? "Reset day and increment streak? (You met your goal!)" : "Reset day? (Today's progress will be cleared)";
     if (!confirm(confirmText)) return;
     // Restore default task list as undone, streak bonus reflects next streak day
-    setTasks(buildDefaultTasksForStreak(metGoal ? streak + 1 : streak));
+    setTasks(()=> ([...tasks, ...buildDefaultTasksForStreak(metGoal ? streak + 1 : streak)]));
     setDailyEarnedXP(0);
     setCompletedLog([]);
     setLastReset(todayISO());
@@ -123,12 +123,32 @@ export default function App() {
     setHasShownGoalCongrats(false);
     setStreakIncrementedToday(false);
 
-    // Refresh loot list on reset (AI if key present, else local fallback)
+    // Refresh loot list on reset: replace only claimed boxes with similar default loot
     setOpenLootInfoId(null);
-    setLoot([]);
     setLootVersion((v) => v + 1);
     const fallback = generateFallbackLoot();
-    setLoot(fallback);
+    setLoot((prevLoot) => {
+      const pool = [...fallback];
+      const takeSimilar = (threshold) => {
+        if (pool.length === 0) {
+          return { ...fallback[0], id: crypto.randomUUID(), claimed: false };
+        }
+        let idx = pool.findIndex((x) => x.threshold === threshold);
+        if (idx === -1) {
+          const target = Number(threshold) || 0;
+          let bestIdx = 0;
+          let bestDiff = Math.abs((Number(pool[0]?.threshold) || 0) - target);
+          for (let i = 1; i < pool.length; i++) {
+            const diff = Math.abs((Number(pool[i]?.threshold) || 0) - target);
+            if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+          }
+          idx = bestIdx;
+        }
+        const [picked] = pool.splice(idx, 1);
+        return { ...picked, id: crypto.randomUUID(), claimed: false };
+      };
+      return prevLoot.map((l) => (l.claimed ? takeSimilar(l.threshold) : l));
+    });
   };
 
   async function refreshLootFromAI() {
