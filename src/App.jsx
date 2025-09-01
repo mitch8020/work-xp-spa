@@ -41,7 +41,14 @@ export default function App() {
   const [lootVersion, setLootVersion] = useState(0);
   const [showLootEditor, setShowLootEditor] = useState(false);
   const [timerTask, setTimerTask] = useState(null);
-  const [completedLog, setCompletedLog] = useState([]);
+  const [completedLog, setCompletedLog] = useState(() => {
+    try {
+      const saved = localStorage.getItem("work-xp-spa:completedLog");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [showGoalCongrats, setShowGoalCongrats] = useState(false);
   const [hasShownGoalCongrats, setHasShownGoalCongrats] = useState(false);
   const [streakIncrementedToday, setStreakIncrementedToday] = useState(false);
@@ -275,13 +282,6 @@ export default function App() {
     const onDocClick = () => setOpenLootInfoId(null);
     window.addEventListener("click", onDocClick);
     return () => window.removeEventListener("click", onDocClick);
-  }, []);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("work-xp-spa:completedLog");
-    if (saved) {
-      try { setCompletedLog(JSON.parse(saved)); } catch {}
-    }
   }, []);
 
   useEffect(() => {
