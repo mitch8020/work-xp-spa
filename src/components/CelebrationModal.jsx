@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { X, Trophy, BellRing, BellOff } from "lucide-react";
 import { formatDurationMs, lootMinutesForThreshold } from "../helpers.jsx";
@@ -20,7 +20,7 @@ export default function CelebrationModal({ loot, onClose, defaultAlarmEnabled = 
       });
     }
     return result;
-  }, [loot?.id]);
+  }, []);
 
   const [startMs] = useState(() => Date.now());
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -36,19 +36,26 @@ export default function CelebrationModal({ loot, onClose, defaultAlarmEnabled = 
   const remainingMs = Math.max(0, maxMs - elapsedMs);
   const done = remainingMs <= 0;
 
+  const stopAlarm = useCallback(() => {
+    try {
+      if (pulseRef.current) { clearInterval(pulseRef.current); pulseRef.current = null; }
+      if (gainRef.current) { gainRef.current.gain.value = 0; }
+      if (oscRef.current) { oscRef.current.stop(); oscRef.current.disconnect(); oscRef.current = null; }
+      if (audioCtxRef.current) { audioCtxRef.current.close(); audioCtxRef.current = null; }
+    } finally {
+      setAlarmActive(false);
+    }
+  }, []);
+
   useEffect(() => {
     intervalRef.current = setInterval(() => setElapsedMs(Date.now() - startMs), 300);
     return () => {
       clearInterval(intervalRef.current);
       stopAlarm();
     };
-  }, [startMs]);
+  }, [startMs, stopAlarm]);
 
-  useEffect(() => {
-    if (done && !alarmActive && alarmEnabled) startAlarm();
-  }, [done, alarmEnabled]);
-
-  function startAlarm() {
+  const startAlarm = useCallback(() => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = ctx.createOscillator();
@@ -67,24 +74,17 @@ export default function CelebrationModal({ loot, onClose, defaultAlarmEnabled = 
       pulseRef.current = pulse;
       setAlarmActive(true);
     } catch {}
-  }
+  }, []);
 
-  function stopAlarm() {
-    try {
-      if (pulseRef.current) { clearInterval(pulseRef.current); pulseRef.current = null; }
-      if (gainRef.current) { gainRef.current.gain.value = 0; }
-      if (oscRef.current) { oscRef.current.stop(); oscRef.current.disconnect(); oscRef.current = null; }
-      if (audioCtxRef.current) { audioCtxRef.current.close(); audioCtxRef.current = null; }
-    } finally {
-      setAlarmActive(false);
-    }
-  }
+  useEffect(() => {
+    if (done && !alarmActive && alarmEnabled) startAlarm();
+  }, [done, alarmActive, alarmEnabled, startAlarm]);
 
   useEffect(() => {
     const handler = (e) => { if (e.key === "Escape") { stopAlarm(); onClose(); } };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [onClose, stopAlarm]);
 
   return (
     <motion.div className="fixed inset-0 z-50 flex items-center justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>

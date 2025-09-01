@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { X, Eye, EyeOff } from "lucide-react";
 import { clamp, STORAGE_KEY } from "../helpers.jsx";
@@ -11,7 +11,6 @@ export default function SettingsModal({
   openaiKey,
   setOpenaiKey,
   defaultAvailableMinutes,
-  setDefaultAvailableMinutes,
   onStartProfile,
   defaultAlarmEnabled,
   setDefaultAlarmEnabled,
@@ -26,7 +25,8 @@ export default function SettingsModal({
   const clearAllData = () => {
     try {
       localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem("work-xp-spa:completedLog");
+      // Intentionally keep completed log; only cleared via Reset Day
+      // localStorage.removeItem("work-xp-spa:completedLog");
     } catch {}
     window.location.reload();
   };
@@ -120,13 +120,22 @@ export default function SettingsModal({
                 <button type="button" className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm" onClick={onEditDefaultTasks}>Edit</button>
               </div>
             </div>
-            <div className="mb-1">
+            <div className="mb-3">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-medium text-slate-200">Default loot drops</div>
                   <div className="text-xs text-slate-400">Customize your default reward pool</div>
                 </div>
                 <button type="button" className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm" onClick={onEditDefaultLoot}>Edit</button>
+              </div>
+            </div>
+            <div className="mb-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-slate-200">Profile wizard</div>
+                  <div className="text-xs text-slate-400">Answer a few questions to personalize loot drops</div>
+                </div>
+                <button type="button" className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm" onClick={() => onStartProfile?.()}>Open</button>
               </div>
             </div>
           </div>

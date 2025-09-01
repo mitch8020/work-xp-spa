@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { X, ListChecks, Plus } from "lucide-react";
 import { fetchOpenAIChat } from "../helpers.jsx";

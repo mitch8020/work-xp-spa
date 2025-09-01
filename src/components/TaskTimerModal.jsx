@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { X, Timer as TimerIcon, Check, BellRing, BellOff } from "lucide-react";
+import { X, Check, BellRing, BellOff } from "lucide-react";
 import { formatDurationMs } from "../helpers.jsx";
 
 export default function TaskTimerModal({ task, maxMinutes, onComplete, onClose, defaultAlarmEnabled = true }) {
@@ -20,22 +20,15 @@ export default function TaskTimerModal({ task, maxMinutes, onComplete, onClose, 
   const remainingMs = Math.max(0, maxMs - elapsedMs);
   const done = remainingMs <= 0;
 
-  useEffect(() => {
-    intervalRef.current = setInterval(() => setElapsedMs(Date.now() - startMs), 300);
-    return () => {
-      clearInterval(intervalRef.current);
-      stopAlarm();
-      restoreAttention();
-    };
-  }, [startMs]);
+  const restoreAttention = useCallback(() => {
+    try {
+      document.title = originalTitleRef.current || document.title;
+      const link = document.querySelector("link[rel='icon']");
+      if (link && originalFaviconRef.current) link.setAttribute("href", originalFaviconRef.current);
+    } catch {}
+  }, []);
 
-  useEffect(() => {
-    if (done && !alarmActive && alarmEnabled) {
-      startAlarm();
-    }
-  }, [done, alarmEnabled]);
-
-  function setAttention(active) {
+  const setAttention = useCallback((active) => {
     try {
       const link = document.querySelector("link[rel='icon']");
       if (!originalFaviconRef.current && link) originalFaviconRef.current = link.getAttribute("href");
@@ -46,17 +39,42 @@ export default function TaskTimerModal({ task, maxMinutes, onComplete, onClose, 
         restoreAttention();
       }
     } catch {}
-  }
+  }, [restoreAttention]);
 
-  function restoreAttention() {
+  const stopAlarm = useCallback(() => {
     try {
-      document.title = originalTitleRef.current || document.title;
-      const link = document.querySelector("link[rel='icon']");
-      if (link && originalFaviconRef.current) link.setAttribute("href", originalFaviconRef.current);
-    } catch {}
-  }
+      if (pulseRef.current) {
+        clearInterval(pulseRef.current);
+        pulseRef.current = null;
+      }
+      if (gainRef.current) {
+        gainRef.current.gain.value = 0;
+      }
+      if (oscRef.current) {
+        oscRef.current.stop();
+        oscRef.current.disconnect();
+        oscRef.current = null;
+      }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close();
+        audioCtxRef.current = null;
+      }
+    } finally {
+      setAlarmActive(false);
+      setAttention(false);
+    }
+  }, [setAttention]);
 
-  function startAlarm() {
+  useEffect(() => {
+    intervalRef.current = setInterval(() => setElapsedMs(Date.now() - startMs), 300);
+    return () => {
+      clearInterval(intervalRef.current);
+      stopAlarm();
+      restoreAttention();
+    };
+  }, [startMs, stopAlarm, restoreAttention]);
+
+  const startAlarm = useCallback(() => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = ctx.createOscillator();
@@ -79,34 +97,14 @@ export default function TaskTimerModal({ task, maxMinutes, onComplete, onClose, 
       pulseRef.current = pulse;
       setAlarmActive(true);
       setAttention(true);
-    } catch (e) {
-      // ignore alarm start errors
-    }
-  }
+    } catch {}
+  }, [setAttention]);
 
-  function stopAlarm() {
-    try {
-      if (pulseRef.current) {
-        clearInterval(pulseRef.current);
-        pulseRef.current = null;
-      }
-      if (gainRef.current) {
-        gainRef.current.gain.value = 0;
-      }
-      if (oscRef.current) {
-        oscRef.current.stop();
-        oscRef.current.disconnect();
-        oscRef.current = null;
-      }
-      if (audioCtxRef.current) {
-        audioCtxRef.current.close();
-        audioCtxRef.current = null;
-      }
-    } finally {
-      setAlarmActive(false);
-      setAttention(false);
+  useEffect(() => {
+    if (done && !alarmActive && alarmEnabled) {
+      startAlarm();
     }
-  }
+  }, [done, alarmActive, alarmEnabled, startAlarm]);
 
   return (
     <motion.div className="fixed inset-0 z-50 flex items-center justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { stopAlarm(); onClose(); }}>

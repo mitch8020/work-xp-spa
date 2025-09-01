@@ -1,16 +1,14 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Minus, RotateCcw, Swords, Settings, RefreshCcw, Info, Trash2, Circle, ListChecks, Eye, EyeOff, X, Loader2, Sparkles, Edit3, Flame, Package, Trophy, Target, Clock } from "lucide-react";
+import { Plus, RotateCcw, Swords, Settings, RefreshCcw, Info, Trash2, Circle, ListChecks, Loader2, Sparkles, Edit3, Flame, Package, Trophy, Target, Clock } from "lucide-react";
 import { Card, SettingsModal, LootEditorModal, GeneratorModal, CelebrationModal, ProfileWizard, TaskTimerModal, GoalCongratsModal, DefaultTasksEditorModal, DefaultLootTemplateEditorModal, DefaultMinutesModal } from "./components/index.js";
 import {
   STORAGE_KEY,
   todayISO,
   clamp,
-  resolveOpenAIKey,
   fetchOpenAIChat,
   estimateDurationLabel,
   defaultDescription,
-  longDescription,
   ensureDescription,
   isSameRewardSet,
   nudgeRewards,
@@ -54,6 +52,7 @@ export default function App() {
   const [showDefaultLootEditor, setShowDefaultLootEditor] = useState(false);
   const [defaultAlarmEnabled, setDefaultAlarmEnabled] = useState(true);
   const [showDefaultMinutesEditor, setShowDefaultMinutesEditor] = useState(false);
+  const [goalCongratsManual, setGoalCongratsManual] = useState(false);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -84,7 +83,7 @@ export default function App() {
     const state = { tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers, streakIncrementedToday, defaultTasksOverride, defaultLootOverride, defaultAlarmEnabled };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     localStorage.setItem("work-xp-spa:completedLog", JSON.stringify(completedLog));
-  }, [tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers, streakIncrementedToday, completedLog]);
+  }, [tasks, dailyGoal, loot, streak, lastReset, autoCarryStreak, openaiKey, defaultAvailableMinutes, lifetimeXP, pointsSpent, dailyEarnedXP, profileAnswers, streakIncrementedToday, completedLog, defaultTasksOverride, defaultLootOverride, defaultAlarmEnabled]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -192,6 +191,8 @@ export default function App() {
     setShowGoalCongrats(false);
     setHasShownGoalCongrats(false);
     setStreakIncrementedToday(false);
+    // Clear per-day goal congrats flag so it can auto-show once again after reset
+    try { localStorage.removeItem(`work-xp-spa:goalCongratsShown:${todayISO()}`); } catch {}
 
     // Refresh loot list on reset: replace only claimed boxes with similar default loot
     setOpenLootInfoId(null);
@@ -288,13 +289,10 @@ export default function App() {
       if (!hasShownGoalCongrats) {
         setShowGoalCongrats(true);
         setHasShownGoalCongrats(true);
-      }
-      if (autoCarryStreak && !streakIncrementedToday) {
-        setStreak((s) => s + 1);
-        setStreakIncrementedToday(true);
+        setGoalCongratsManual(false);
       }
     }
-  }, [totalXP, dailyGoal, hasShownGoalCongrats, autoCarryStreak, streakIncrementedToday]);
+  }, [totalXP, dailyGoal, hasShownGoalCongrats]);
 
   return (
     <div className="relative min-h-screen text-slate-100 p-4 md:p-6 flex items-center justify-center bg-[radial-gradient(120%_100%_at_50%_0%,_rgba(31,41,55,1)_0%,_rgba(2,6,23,1)_45%,_rgba(0,0,0,1)_100%)]">
@@ -313,6 +311,10 @@ export default function App() {
           <button onClick={resetDay} className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm" title="Reset today">
             <RotateCcw className="w-4 h-4"/>
             <span className="hidden md:inline">Reset Day</span>
+          </button>
+          <button onClick={() => { setGoalCongratsManual(true); setShowGoalCongrats(true); }} className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm" title="Completed Tasks">
+            <ListChecks className="w-4 h-4"/>
+            <span className="hidden md:inline">Completed Tasks</span>
           </button>
           <button onClick={() => setShowSettings(true)} className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl text-xs md:text-sm" title="Settings">
             <Settings className="w-4 h-4"/>
@@ -598,7 +600,9 @@ export default function App() {
           {showGoalCongrats && (
             <GoalCongratsModal
               tasks={completedLog}
-              onClose={() => { setShowGoalCongrats(false); setHasShownGoalCongrats(true); }}
+              manualOpen={goalCongratsManual}
+              metGoal={totalXP >= dailyGoal && dailyGoal > 0}
+              onClose={() => { setShowGoalCongrats(false); if (!goalCongratsManual) setHasShownGoalCongrats(true); setGoalCongratsManual(false); }}
             />
           )}
           {showGenerator && (
